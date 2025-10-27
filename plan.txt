@@ -1,0 +1,271 @@
+Perfect — here’s the **complete project outline + component + API structure** for your **University Faculty Scheduler (Cloudflare-native, committee-only, visual + editable + smart suggestions)** — **including optional enhancements**.
+
+---
+
+# 🧭 PROJECT OVERVIEW
+
+**Goal:** A browser-based, offline-capable scheduler for assigning ~40 faculty members to pre-defined subjects, sections, time slots, and rooms — with preference scoring, visual editing, conflict checking, and snapshot management.
+**Audience:** ≤3 scheduling committee members (PIN-protected).
+**Hosting:** Cloudflare Pages + Cloudflare Workers + D1 (or KV)
+
+---
+
+# 🧩 ARCHITECTURE OVERVIEW
+
+| Layer           | Role                                       | Technology                                                    |
+| --------------- | ------------------------------------------ | ------------------------------------------------------------- |
+| **Frontend**    | Core UI, algorithm, visualization, editing | React (or Svelte/Solid) + TailwindCSS + D3/Canvas + IndexedDB |
+| **Backend**     | Minimal API for persistence/auth           | Cloudflare Worker (REST endpoints)                            |
+| **Storage**     | Small, transactional data store            | Cloudflare D1 (SQLite) or KV                                  |
+| **Auth**        | Simple, PIN-based                          | Worker middleware + optional Cloudflare Access                |
+| **Data Format** | Unified JSON                               | `{ config, preferences, schedule, snapshots, settings }`      |
+
+---
+
+# ⚙️ FRONTEND STRUCTURE
+
+## 1. App Shell
+
+**Purpose:** Root component that handles routing, auth, and global state.
+
+* `App.tsx`
+
+  * Handles PIN entry and stores session in localStorage
+  * Loads JSON data from backend or import
+  * Manages offline state
+  * Layout (Sidebar + Main workspace)
+
+---
+
+## 2. Sidebar (Navigation + Snapshots)
+
+**Components:**
+
+* `SidebarMenu.tsx` – navigation: Config / Preferences / Schedule / Snapshots / Settings
+* `SnapshotList.tsx` – shows list of manual snapshots with timestamp + diff button
+* `SaveSnapshotButton.tsx` – capture current state (local + sync to server)
+
+---
+
+## 3. Configuration Module
+
+**Components:**
+
+* `ConfigTable.tsx` – table import/edit for Subjects, Sections, Timeslots, Rooms, Buildings, Faculty
+* `ConfigImporter.tsx` – JSON/CSV upload
+* `ConfigExporter.tsx` – export unified JSON
+* Validates format + relationships (e.g., each section must map to a subject)
+
+---
+
+## 4. Preferences Module
+
+**Components:**
+
+* `PreferenceMatrix.tsx` – grid editor for faculty × subject, time slot, or building
+* `PreferenceLegend.tsx` – color guide (red→green for -3→+3)
+* `QuickFillTools.tsx` – fill pattern, copy from last semester
+* Stored in local IndexedDB (auto-save)
+
+---
+
+## 5. Scheduler Engine
+
+**Modules (in `/engine`):**
+
+* `optimizer.ts` – Hungarian / heuristic optimization
+* `mobilityPenalty.ts` – cost function for building changes
+* `scoring.ts` – total weighted score calculator
+* `conflictChecker.ts` – identifies hard & soft conflicts
+* `suggestions.ts` – generates alternate faculty or swaps
+
+**Flow:**
+
+1. Collect config + preferences
+2. Run optimizer (client-side)
+3. Produce `schedule` array
+4. Display results + score summary
+
+---
+
+## 6. Schedule Visualization
+
+**Key Components:**
+
+* `ScheduleGrid.tsx` – main visualization (faculty × time slot grid)
+
+  * Hover faculty → highlight their slots
+  * Hover course → highlight all its sections
+  * Conflict highlights (red outline / yellow shade)
+  * Editable: click slot → open `EditDialog`
+* `EditDialog.tsx` – reassign / swap options with suggestions
+* `ConflictPanel.tsx` – summary list of conflicts with “jump to” buttons
+* `Tooltip.tsx` – contextual info on hover
+* `FilterBar.tsx` – filter by faculty, building, subject, day
+
+**Visualization:**
+
+* D3 / Canvas grid for smooth rendering
+* Zoom & pan for large department view
+* Color scale for preference satisfaction
+
+---
+
+## 7. Manual Editing + Suggestions
+
+**In `EditDialog`:**
+
+* “Find available faculty” (no time conflict, positive preference)
+* “Swap with another faculty (same time slot)”
+* “Best replacements by total score”
+* Re-run conflict check & update score delta live
+
+---
+
+## 8. Snapshots & Diff Viewer
+
+**Components:**
+
+* `SnapshotList.tsx` – list & actions
+* `SnapshotDiff.tsx` – side-by-side comparison of two JSON states
+* `ChangeHighlighter.tsx` – animates changed slots
+  **Storage:**
+* Local first; synced to backend D1 on demand
+
+---
+
+## 9. Conflict Visualization Layer
+
+* Integrated into `ScheduleGrid` + `ConflictPanel`
+* Checks:
+
+  * Faculty double-booking
+  * Consecutive building jumps
+  * Missing faculty for section
+  * Over-assigned subjects
+* Tooltips show reason and resolution hint
+
+---
+
+## 10. Settings & Enhancements
+
+**Components:**
+
+* `SettingsPanel.tsx`
+
+  * Adjust global algorithm weights (mobility penalty, seniority weight, preference strength)
+  * Switch dark/light mode
+  * Toggle auto-validation
+  * Auto-layout animation on diff compare
+* `ThemeToggle.tsx`
+* `SimulationPanel.tsx` – what-if adjustments (e.g., “remove this faculty” → re-run optimizer)
+
+---
+
+# 🖥️ BACKEND (Cloudflare Worker)
+
+### Routes
+
+| Method              | Endpoint                                                       | Purpose |
+| ------------------- | -------------------------------------------------------------- | ------- |
+| `POST /auth/login`  | Verify PIN, return JWT/session                                 |         |
+| `GET /data`         | Return unified JSON (config, preferences, schedule, snapshots) |         |
+| `POST /data`        | Save unified JSON                                              |         |
+| `POST /snapshot`    | Save named snapshot                                            |         |
+| `GET /snapshot/:id` | Fetch snapshot by ID                                           |         |
+| `POST /diff`        | Compare two snapshots (optional server diff)                   |         |
+| `GET /settings`     | Get saved weight tuning                                        |         |
+| `POST /settings`    | Save new weights                                               |         |
+
+**Auth middleware:**
+
+* Simple PIN check from `Authorization` header
+* Optional Cloudflare Access header validation
+
+**Storage:**
+
+* D1 table with columns:
+
+  * `id`, `data_json`, `snapshot_name`, `created_at`, `updated_at`
+
+---
+
+# 🧮 DATA FORMAT (Single JSON)
+
+```json
+{
+  "config": {
+    "faculty": [...],
+    "subjects": [...],
+    "sections": [...],
+    "timeslots": [...],
+    "rooms": [...],
+    "buildings": [...]
+  },
+  "preferences": {
+    "facultySubject": {...},
+    "facultyTimeslot": {...},
+    "facultyBuilding": {...},
+    "mobility": {...}
+  },
+  "schedule": [...],
+  "snapshots": [
+    { "id": "snap_2025_01", "timestamp": "...", "data": {...} }
+  ],
+  "settings": {
+    "weights": {
+      "mobility": 0.8,
+      "seniority": 1.2,
+      "preference": 1.0
+    },
+    "theme": "dark"
+  }
+}
+```
+
+---
+
+# 🌱 OPTIONAL ENHANCEMENTS (INCLUDED)
+
+✅ **Weighted Scoring UI:**
+Slider-based controls to adjust bias between preferences, seniority, mobility.
+Changes instantly recompute ranking without full reallocation.
+
+✅ **Lock Assignments:**
+Checkbox beside schedule cells → locked entries not touched on next re-run.
+
+✅ **What-if Simulator:**
+Panel to temporarily remove/replace a faculty, then preview new score/conflicts.
+
+✅ **Diff Animation:**
+When comparing snapshots, changed cells animate with fade/slide effect.
+
+✅ **Dark Mode:**
+Toggle in settings; saved in JSON `settings.theme`.
+
+✅ **Auto-layout Animation:**
+Smooth repositioning of cells when filters or snapshots change.
+
+✅ **Heatmap Overlay:**
+Show satisfaction intensity (green=high match, red=low).
+
+✅ **Offline Mode:**
+Works fully offline via IndexedDB + Service Worker cache.
+
+---
+
+# 🚀 WORKFLOW SUMMARY
+
+1. Committee logs in with PIN.
+2. Imports config JSON (subjects, faculty, etc.).
+3. Enters preferences.
+4. Runs scheduler (client-side).
+5. Visualizes results (color-coded, hover/filters).
+6. Adjusts manually (swap, edit, suggestions).
+7. Saves snapshot (versioned).
+8. Exports single `.faculty-scheduler.json`.
+9. Optionally syncs to backend for backup.
+
+---
+
+Would you like me to now generate the **API contract (OpenAPI-style)** and **frontend directory structure** next — so you can go straight into scaffolding it on Cloudflare Pages + Workers?

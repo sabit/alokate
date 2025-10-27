@@ -1,0 +1,86 @@
+{
+  "faculty": [
+    {
+      "id": "faculty-anna",
+      "name": "Dr. Anna Rivera",
+      "maxSections": 3,
+      "maxOverload": 1,
+      "canOverload": true
+    },
+    {
+      "id": "faculty-brian",
+      "name": "Prof. Brian Chen",
+      "maxSections": 2,
+      "maxOverload": 0,
+      "canOverload": false
+    }
+  ],
+  "subjects": [
+    {
+      "id": "subject-math101",
+      "name": "Foundations of Algebra",
+      "code": "MATH-101"
+    },
+    {
+      "id": "subject-phys210",
+      "name": "Classical Mechanics",
+      "code": "PHYS-210"
+    }
+  ],
+  "timeslots": [
+    {
+      "id": "slot-mon-0800",
+      "label": "Mon 08:00–09:30",
+      "day": "Monday",
+      "start": "08:00",
+      "end": "09:30"
+    },
+    {
+      "id": "slot-wed-1030",
+      "label": "Wed 10:30–12:00",
+      "day": "Wednesday",
+      "start": "10:30",
+      "end": "12:00"
+    }
+  ],
+  "buildings": [
+    {
+      "id": "building-a",
+      "label": "Science Hall"
+    },
+    {
+      "id": "building-b",
+      "label": "Engineering Center"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "room-a-101",
+      "label": "Science 101",
+      "buildingId": "building-a",
+      "capacity": 32
+    },
+    {
+      "id": "room-b-201",
+      "label": "Engineering 201",
+      "buildingId": "building-b",
+      "capacity": 28
+    }
+  ],
+  "sections": [
+    {
+      "id": "section-math101-1",
+      "subjectId": "subject-math101",
+      "timeslotId": "slot-mon-0800",
+      "roomId": "room-a-101",
+      "capacity": 30
+    },
+    {
+      "id": "section-phys210-1",
+      "subjectId": "subject-phys210",
+      "timeslotId": "slot-wed-1030",
+      "roomId": "room-b-201",
+      "capacity": 24
+    }
+  ]
+}
