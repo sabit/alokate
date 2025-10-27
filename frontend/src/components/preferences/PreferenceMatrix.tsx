@@ -10,8 +10,6 @@ import { QuickFillTools } from './QuickFillTools';
 type PreferenceView = 'subjects' | 'timeslots' | 'buildings' | 'mobility';
 type MatrixView = 'subjects' | 'timeslots' | 'buildings';
 
-const preferenceOrder: PreferenceLevel[] = [-3, -2, -1, 0, 1, 2, 3];
-
 const preferenceColors: Record<PreferenceLevel, string> = {
   '-3': 'bg-rose-700/80 text-rose-50',
   '-2': 'bg-rose-700/60 text-rose-50/90',
@@ -150,11 +148,14 @@ export const PreferenceMatrix = () => {
     [activeView, preferences, schedulePersist, updatePreferences],
   );
 
-  const handleCellActivate = useCallback(
-    (facultyId: string, columnIdValue: string) => {
+  const adjustCellValue = useCallback(
+    (facultyId: string, columnIdValue: string, delta: 1 | -1) => {
       const current = getValue(facultyId, columnIdValue);
-      const next = preferenceOrder[(preferenceOrder.indexOf(current) + 1) % preferenceOrder.length];
-      setValue(facultyId, columnIdValue, next);
+      const nextNumeric = Math.max(-3, Math.min(3, current + delta));
+      if (nextNumeric === current) {
+        return;
+      }
+      setValue(facultyId, columnIdValue, nextNumeric as PreferenceLevel);
     },
     [getValue, setValue],
   );
@@ -308,7 +309,20 @@ export const PreferenceMatrix = () => {
                           'w-full rounded-md border border-white/5 px-2 py-1 text-sm font-semibold transition hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400',
                           preferenceColors[value],
                         )}
-                        onClick={() => handleCellActivate(faculty.id, columnIdentifier)}
+                        onClick={() => adjustCellValue(faculty.id, columnIdentifier, 1)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          adjustCellValue(faculty.id, columnIdentifier, -1);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
+                            event.preventDefault();
+                            adjustCellValue(faculty.id, columnIdentifier, 1);
+                          } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
+                            event.preventDefault();
+                            adjustCellValue(faculty.id, columnIdentifier, -1);
+                          }
+                        }}
                       >
                         {value > 0 ? `+${value}` : value}
                       </button>

@@ -1,7 +1,333 @@
-export const ScheduleGrid = () => (
-  <div className="h-[540px] rounded-xl border border-white/5 bg-slate-950/60 p-4">
-    <div className="grid h-full place-items-center text-slate-400">
-      Visual schedule grid will render here with faculty × timeslot heatmaps.
-    </div>
-  </div>
-);
+import clsx from 'clsx';
+import type { KeyboardEvent } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useScheduleGrid } from '../../../hooks/useScheduleGrid';
+import type { PreferenceLevel } from '../../../types';
+
+const preferenceBadgeClass: Record<PreferenceLevel, string> = {
+  '-3': 'bg-rose-900/60 text-rose-200 border-rose-500/40',
+  '-2': 'bg-rose-900/40 text-rose-200 border-rose-500/30',
+  '-1': 'bg-amber-900/30 text-amber-200 border-amber-500/30',
+  0: 'bg-slate-900/40 text-slate-300 border-white/10',
+  1: 'bg-emerald-900/30 text-emerald-200 border-emerald-500/30',
+  2: 'bg-emerald-800/40 text-emerald-100 border-emerald-400/40',
+  3: 'bg-emerald-700/60 text-emerald-50 border-emerald-300/50',
+};
+
+const formatPreference = (value: PreferenceLevel) => (value > 0 ? `+${value}` : value.toString());
+
+export const ScheduleGrid = () => {
+  const { rows, timeslots, summary, unscheduledSections, orphanAssignments } = useScheduleGrid();
+
+  const [activeCell, setActiveCell] = useState<{ facultyId: string; timeslotId: string } | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<{ facultyId: string; timeslotId: string } | null>(null);
+
+  const cellRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  const rowMap = useMemo(() => new Map(rows.map((row) => [row.faculty.id, row])), [rows]);
+  const timeslotMap = useMemo(() => new Map(timeslots.map((slot) => [slot.id, slot])), [timeslots]);
+
+  const registerCellRef = useCallback((key: string, node: HTMLButtonElement | null) => {
+    if (node) {
+      cellRefs.current[key] = node;
+    } else {
+      delete cellRefs.current[key];
+    }
+  }, []);
+
+  const hasData = rows.length > 0 && timeslots.length > 0;
+
+  const focusCell = useCallback(
+    (rowIndex: number, columnIndex: number) => {
+      const row = rows[rowIndex];
+      const cell = row?.cells[columnIndex];
+      if (!cell) {
+        return;
+      }
+      const key = `${cell.facultyId}-${cell.timeslotId}`;
+      const element = cellRefs.current[key];
+      if (element) {
+        element.focus();
+      }
+    },
+    [rows],
+  );
+
+  const handleKeyNavigation = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>, rowIndex: number, columnIndex: number) => {
+      const rowCount = rows.length;
+      const columnCount = timeslots.length;
+      let nextRow = rowIndex;
+      let nextColumn = columnIndex;
+
+      switch (event.key) {
+        case 'ArrowUp':
+          event.preventDefault();
+          nextRow = Math.max(0, rowIndex - 1);
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          nextRow = Math.min(rowCount - 1, rowIndex + 1);
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          nextColumn = Math.max(0, columnIndex - 1);
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          nextColumn = Math.min(columnCount - 1, columnIndex + 1);
+          break;
+        case 'Enter':
+        case ' ': {
+          event.preventDefault();
+          const row = rows[rowIndex];
+          const cell = row?.cells[columnIndex];
+          if (cell) {
+            setActiveCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId });
+          }
+          return;
+        }
+        default:
+          return;
+      }
+
+      if (nextRow !== rowIndex || nextColumn !== columnIndex) {
+        focusCell(nextRow, nextColumn);
+      }
+    },
+    [focusCell, rows, timeslots],
+  );
+
+  const activeCellDetail = useMemo(() => {
+    if (!activeCell) {
+      return null;
+    }
+    const row = rowMap.get(activeCell.facultyId);
+    const cell = row?.cells.find((candidate) => candidate.timeslotId === activeCell.timeslotId);
+    const timeslot = timeslotMap.get(activeCell.timeslotId);
+
+    if (!row || !cell || !timeslot) {
+      return null;
+    }
+
+    return {
+      row,
+      cell,
+      timeslot,
+    };
+  }, [activeCell, rowMap, timeslotMap]);
+
+  return (
+    <section className="space-y-4 rounded-xl border border-white/5 bg-slate-950/60 p-4">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-white">Schedule overview</h3>
+          <p className="text-sm text-slate-400">
+            {summary.scheduledSections} of {summary.totalSections} sections scheduled · {summary.totalAssignments} assignments tracked
+          </p>
+        </div>
+      </header>
+
+      {!hasData && (
+        <div className="grid h-[360px] place-items-center rounded-lg border border-dashed border-white/10 bg-slate-950/50 text-slate-500">
+          Add faculty, timeslots, and run the optimiser to populate the schedule grid.
+        </div>
+      )}
+
+      {hasData && (
+        <div className="overflow-auto">
+          <table className="min-w-full border-separate border-spacing-0 text-sm">
+            <thead>
+              <tr>
+                <th className="sticky left-0 top-0 z-20 bg-slate-950 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Faculty
+                </th>
+                {timeslots.map((timeslot) => (
+                  <th
+                    key={timeslot.id}
+                    className="sticky top-0 z-10 min-w-[180px] bg-slate-950 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"
+                  >
+                    <div className="text-slate-200">{timeslot.label}</div>
+                    <div className="text-[11px] text-slate-500">{timeslot.day}</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={row.faculty.id} className="border-t border-white/5">
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 bg-slate-950 px-3 py-3 text-left text-sm font-semibold text-slate-100"
+                  >
+                    <div>{row.faculty.name}</div>
+                    <div className="text-[11px] font-normal text-slate-500">
+                      {row.totalAssignments} assigned · Max {row.faculty.maxSections}
+                      {row.faculty.canOverload ? ` (+${row.faculty.maxOverload} overload)` : ''}
+                    </div>
+                  </th>
+                  {row.cells.map((cell, columnIndex) => {
+                    const hasAssignments = cell.assignments.length > 0;
+                    const key = `${cell.facultyId}-${cell.timeslotId}`;
+                    const isActive = activeCell?.facultyId === cell.facultyId && activeCell.timeslotId === cell.timeslotId;
+                    const isHovered = hoveredCell?.facultyId === cell.facultyId && hoveredCell.timeslotId === cell.timeslotId;
+                    return (
+                      <td key={key} className="px-2 py-2 align-top">
+                        <button
+                          type="button"
+                          ref={(node) => registerCellRef(key, node)}
+                          className={clsx(
+                            'flex h-full w-full min-h-[96px] flex-col gap-2 rounded-md border px-2 py-2 text-left shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400',
+                            preferenceBadgeClass[cell.preference],
+                            {
+                              'ring-2 ring-brand-400': isActive,
+                              'border-white/30': isHovered && !isActive,
+                              'ring-1 ring-rose-400/40': cell.isUnfavourable && hasAssignments,
+                              'opacity-70': !hasAssignments,
+                            },
+                          )}
+                          onMouseEnter={() => setHoveredCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId })}
+                          onMouseLeave={() => setHoveredCell((current) => (current?.facultyId === cell.facultyId && current.timeslotId === cell.timeslotId ? null : current))}
+                          onFocus={() => setActiveCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId })}
+                          onClick={() => setActiveCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId })}
+                          onKeyDown={(event) => handleKeyNavigation(event, rowIndex, columnIndex)}
+                          aria-pressed={isActive}
+                          aria-label={`${row.faculty.name} at ${timeslotMap.get(cell.timeslotId)?.label ?? 'timeslot'}, preference ${formatPreference(cell.preference)}`}
+                        >
+                          <div className="flex flex-wrap gap-1 text-xs font-medium">
+                            {hasAssignments
+                              ? cell.assignments.map((assignment) => (
+                                  <span
+                                    key={assignment.sectionId}
+                                    className="inline-flex items-center gap-1 rounded bg-black/30 px-1.5 py-0.5 text-[11px] text-slate-100"
+                                  >
+                                    <span>{assignment.subjectCode ?? assignment.subjectName}</span>
+                                    {assignment.roomLabel && <span className="text-[10px] text-slate-400">· {assignment.roomLabel}</span>}
+                                  </span>
+                                ))
+                              : (
+                                  <span className="text-xs text-slate-400">No assignment</span>
+                                )}
+                          </div>
+                          <div className="mt-auto flex items-center justify-between text-[11px] text-slate-300">
+                            <span>Preference {formatPreference(cell.preference)}</span>
+                            {hasAssignments && cell.assignments.length > 1 && (
+                              <span className="rounded bg-black/20 px-1 text-[10px] text-slate-200">
+                                {cell.assignments.length} items
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {activeCellDetail && (
+        <div className="rounded-lg border border-white/10 bg-slate-900/60 p-4">
+          <header className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-white">
+                {activeCellDetail.row.faculty.name} · {activeCellDetail.timeslot.label}
+              </p>
+              <p className="text-xs text-slate-400">
+                Preference {formatPreference(activeCellDetail.cell.preference)}{' '}
+                {activeCellDetail.cell.isUnfavourable && '(needs attention)'}
+              </p>
+            </div>
+            <span className="rounded bg-brand-500/10 px-2 py-1 text-xs text-brand-200">
+              {activeCellDetail.cell.assignments.length} assignment{activeCellDetail.cell.assignments.length === 1 ? '' : 's'}
+            </span>
+          </header>
+
+          {activeCellDetail.cell.assignments.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-300">No assignments scheduled in this slot yet.</p>
+          ) : (
+            <ul className="mt-3 space-y-2 text-sm text-slate-200">
+              {activeCellDetail.cell.assignments.map((assignment) => (
+                <li key={assignment.sectionId} className="rounded-lg border border-white/10 bg-slate-950/50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium">
+                        {assignment.subjectCode ? `${assignment.subjectCode} · ` : ''}
+                        {assignment.subjectName}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        Section {assignment.sectionId}
+                        {assignment.roomLabel ? ` · Room ${assignment.roomLabel}` : ''}
+                        {assignment.buildingLabel ? ` (${assignment.buildingLabel})` : ''}
+                      </p>
+                    </div>
+                    {assignment.locked && (
+                      <span className="rounded bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-200">
+                        Locked
+                      </span>
+                    )}
+                  </div>
+                  {assignment.score && (
+                    <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-slate-400">
+                      <div>
+                        <dt className="uppercase tracking-wide">Preference</dt>
+                        <dd className="font-medium text-slate-200">{assignment.score.preference.toFixed(1)}</dd>
+                      </div>
+                      <div>
+                        <dt className="uppercase tracking-wide">Mobility</dt>
+                        <dd className="font-medium text-slate-200">{assignment.score.mobility.toFixed(1)}</dd>
+                      </div>
+                      <div>
+                        <dt className="uppercase tracking-wide">Total</dt>
+                        <dd className="font-medium text-slate-200">{assignment.score.total.toFixed(1)}</dd>
+                      </div>
+                    </dl>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className="mt-4 text-xs text-slate-400">
+            Tip: Use the arrow keys to move between cells. Press Enter to prepare editing in the upcoming swap dialog.
+          </p>
+        </div>
+      )}
+
+      {(unscheduledSections.length > 0 || orphanAssignments.length > 0) && (
+        <div className="space-y-3">
+          {unscheduledSections.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <p className="text-sm font-semibold text-amber-200">Unscheduled sections</p>
+              <ul className="mt-2 space-y-1 text-xs text-amber-100">
+                {unscheduledSections.map((section) => (
+                  <li key={section.sectionId}>
+                    {section.subjectCode ? `${section.subjectCode} · ` : ''}
+                    {section.subjectName}
+                    {section.timeslotLabel ? ` — ${section.timeslotLabel}` : ''}
+                    {section.roomLabel ? ` (${section.roomLabel})` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {orphanAssignments.length > 0 && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3">
+              <p className="text-sm font-semibold text-rose-200">Assignments needing attention</p>
+              <ul className="mt-2 space-y-1 text-xs text-rose-100">
+                {orphanAssignments.map((orphan, index) => (
+                  <li key={`${orphan.entry.sectionId}-${index}`}>
+                    Section {orphan.entry.sectionId} missing {orphan.reason.replace('missing-', '')}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+};
