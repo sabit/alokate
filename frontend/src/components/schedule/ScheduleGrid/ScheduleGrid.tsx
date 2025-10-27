@@ -1,7 +1,9 @@
 import clsx from 'clsx';
 import type { KeyboardEvent } from 'react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Conflict, ConflictSeverity } from '../../../engine/conflictChecker';
 import { useScheduleGrid } from '../../../hooks/useScheduleGrid';
+import { useScheduleUiStore } from '../../../store/scheduleUiStore';
 import type { PreferenceLevel } from '../../../types';
 
 const preferenceBadgeClass: Record<PreferenceLevel, string> = {
@@ -16,13 +18,46 @@ const preferenceBadgeClass: Record<PreferenceLevel, string> = {
 
 const formatPreference = (value: PreferenceLevel) => (value > 0 ? `+${value}` : value.toString());
 
-export const ScheduleGrid = () => {
-  const { rows, timeslots, summary, unscheduledSections, orphanAssignments } = useScheduleGrid();
+const conflictBorderClass: Record<ConflictSeverity, string> = {
+  info: 'border-sky-400/60',
+  warning: 'border-amber-400/60',
+  critical: 'border-rose-500/70',
+};
 
-  const [activeCell, setActiveCell] = useState<{ facultyId: string; timeslotId: string } | null>(null);
+const conflictTextClass: Record<ConflictSeverity, string> = {
+  info: 'text-sky-200',
+  warning: 'text-amber-200',
+  critical: 'text-rose-200',
+};
+
+const conflictPillClass: Record<ConflictSeverity, string> = {
+  info: 'border border-sky-400/40 bg-sky-500/20 text-sky-100',
+  warning: 'border border-amber-400/40 bg-amber-500/20 text-amber-100',
+  critical: 'border border-rose-400/50 bg-rose-500/20 text-rose-100',
+};
+
+const conflictDisplayLabel: Record<ConflictSeverity, string> = {
+  info: 'Notice',
+  warning: 'Conflict',
+  critical: 'Critical conflict',
+};
+
+const conflictPillLabel: Record<ConflictSeverity, string> = {
+  info: 'Info',
+  warning: 'Warning',
+  critical: 'Critical',
+};
+
+export const ScheduleGrid = () => {
+  const { rows, timeslots, summary, unscheduledSections, orphanAssignments, conflictIndex } = useScheduleGrid();
+
+  const activeCell = useScheduleUiStore((state) => state.activeCell);
+  const setActiveCell = useScheduleUiStore((state) => state.setActiveCell);
+  const openEditDialog = useScheduleUiStore((state) => state.openEditDialog);
   const [hoveredCell, setHoveredCell] = useState<{ facultyId: string; timeslotId: string } | null>(null);
 
   const cellRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const lastFocusedCellKey = useRef<string | null>(null);
 
   const rowMap = useMemo(() => new Map(rows.map((row) => [row.faculty.id, row])), [rows]);
   const timeslotMap = useMemo(() => new Map(timeslots.map((slot) => [slot.id, slot])), [timeslots]);
@@ -37,6 +72,8 @@ export const ScheduleGrid = () => {
 
   const hasData = rows.length > 0 && timeslots.length > 0;
 
+  const conflictSummaryText = summary.conflicts === 0 ? 'No conflicts flagged' : `${summary.conflicts} conflict${summary.conflicts === 1 ? '' : 's'} flagged`;
+
   const focusCell = useCallback(
     (rowIndex: number, columnIndex: number) => {
       const row = rows[rowIndex];
@@ -49,8 +86,9 @@ export const ScheduleGrid = () => {
       if (element) {
         element.focus();
       }
+      setActiveCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId });
     },
-    [rows],
+    [rows, setActiveCell],
   );
 
   const handleKeyNavigation = useCallback(
@@ -84,6 +122,7 @@ export const ScheduleGrid = () => {
           const cell = row?.cells[columnIndex];
           if (cell) {
             setActiveCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId });
+            openEditDialog({ facultyId: cell.facultyId, timeslotId: cell.timeslotId });
           }
           return;
         }
@@ -95,7 +134,7 @@ export const ScheduleGrid = () => {
         focusCell(nextRow, nextColumn);
       }
     },
-    [focusCell, rows, timeslots],
+    [focusCell, rows, timeslots, setActiveCell, openEditDialog],
   );
 
   const activeCellDetail = useMemo(() => {
@@ -117,13 +156,39 @@ export const ScheduleGrid = () => {
     };
   }, [activeCell, rowMap, timeslotMap]);
 
+  const activeConflicts = useMemo(
+    () =>
+      activeCellDetail
+        ? activeCellDetail.cell.conflictIds
+            .map((id) => conflictIndex[id])
+            .filter((conflict): conflict is Conflict => Boolean(conflict))
+        : [],
+    [activeCellDetail, conflictIndex],
+  );
+
+  useEffect(() => {
+    if (!activeCell) {
+      lastFocusedCellKey.current = null;
+      return;
+    }
+    const key = `${activeCell.facultyId}-${activeCell.timeslotId}`;
+    if (lastFocusedCellKey.current === key) {
+      return;
+    }
+    const element = cellRefs.current[key];
+    if (element) {
+      lastFocusedCellKey.current = key;
+      element.focus();
+    }
+  }, [activeCell]);
+
   return (
     <section className="space-y-4 rounded-xl border border-white/5 bg-slate-950/60 p-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-white">Schedule overview</h3>
           <p className="text-sm text-slate-400">
-            {summary.scheduledSections} of {summary.totalSections} sections scheduled · {summary.totalAssignments} assignments tracked
+            {summary.scheduledSections} of {summary.totalSections} sections scheduled · {summary.totalAssignments} assignments tracked · {conflictSummaryText}
           </p>
         </div>
       </header>
@@ -171,14 +236,21 @@ export const ScheduleGrid = () => {
                     const key = `${cell.facultyId}-${cell.timeslotId}`;
                     const isActive = activeCell?.facultyId === cell.facultyId && activeCell.timeslotId === cell.timeslotId;
                     const isHovered = hoveredCell?.facultyId === cell.facultyId && hoveredCell.timeslotId === cell.timeslotId;
+                    const timeslotLabel = timeslotMap.get(cell.timeslotId)?.label ?? 'timeslot';
+                    const conflictDescription =
+                      cell.conflictIds.length > 0 && cell.conflictSeverity
+                        ? `, ${cell.conflictIds.length} conflict${cell.conflictIds.length === 1 ? '' : 's'} (${cell.conflictSeverity})`
+                        : '';
+                    const accessibleLabel = `${row.faculty.name} at ${timeslotLabel}, preference ${formatPreference(cell.preference)}${conflictDescription}`;
                     return (
                       <td key={key} className="px-2 py-2 align-top">
                         <button
                           type="button"
                           ref={(node) => registerCellRef(key, node)}
                           className={clsx(
-                            'flex h-full w-full min-h-[96px] flex-col gap-2 rounded-md border px-2 py-2 text-left shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400',
+                            'relative flex h-full w-full min-h-[96px] flex-col gap-2 rounded-md border px-2 py-2 text-left shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400',
                             preferenceBadgeClass[cell.preference],
+                            cell.conflictSeverity && conflictBorderClass[cell.conflictSeverity],
                             {
                               'ring-2 ring-brand-400': isActive,
                               'border-white/30': isHovered && !isActive,
@@ -192,7 +264,8 @@ export const ScheduleGrid = () => {
                           onClick={() => setActiveCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId })}
                           onKeyDown={(event) => handleKeyNavigation(event, rowIndex, columnIndex)}
                           aria-pressed={isActive}
-                          aria-label={`${row.faculty.name} at ${timeslotMap.get(cell.timeslotId)?.label ?? 'timeslot'}, preference ${formatPreference(cell.preference)}`}
+                          aria-label={accessibleLabel}
+                          title={accessibleLabel}
                         >
                           <div className="flex flex-wrap gap-1 text-xs font-medium">
                             {hasAssignments
@@ -209,13 +282,29 @@ export const ScheduleGrid = () => {
                                   <span className="text-xs text-slate-400">No assignment</span>
                                 )}
                           </div>
-                          <div className="mt-auto flex items-center justify-between text-[11px] text-slate-300">
-                            <span>Preference {formatPreference(cell.preference)}</span>
-                            {hasAssignments && cell.assignments.length > 1 && (
-                              <span className="rounded bg-black/20 px-1 text-[10px] text-slate-200">
-                                {cell.assignments.length} items
-                              </span>
+                          <div className="mt-auto space-y-1 text-[11px]">
+                            {cell.conflictIds.length > 0 && cell.conflictSeverity && (
+                              <div
+                                className={clsx(
+                                  'inline-flex items-center gap-1 font-semibold uppercase tracking-wide',
+                                  conflictTextClass[cell.conflictSeverity],
+                                )}
+                              >
+                                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
+                                <span>
+                                  {conflictDisplayLabel[cell.conflictSeverity]}
+                                  {cell.conflictIds.length > 1 ? ` (${cell.conflictIds.length})` : ''}
+                                </span>
+                              </div>
                             )}
+                            <div className="flex items-center justify-between text-slate-300">
+                              <span>Preference {formatPreference(cell.preference)}</span>
+                              {hasAssignments && cell.assignments.length > 1 && (
+                                <span className="rounded bg-black/20 px-1 text-[10px] text-slate-200">
+                                  {cell.assignments.length} items
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </button>
                       </td>
@@ -230,8 +319,8 @@ export const ScheduleGrid = () => {
 
       {activeCellDetail && (
         <div className="rounded-lg border border-white/10 bg-slate-900/60 p-4">
-          <header className="flex flex-wrap items-center justify-between gap-2">
-            <div>
+          <header className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-col">
               <p className="text-sm font-semibold text-white">
                 {activeCellDetail.row.faculty.name} · {activeCellDetail.timeslot.label}
               </p>
@@ -240,9 +329,20 @@ export const ScheduleGrid = () => {
                 {activeCellDetail.cell.isUnfavourable && '(needs attention)'}
               </p>
             </div>
-            <span className="rounded bg-brand-500/10 px-2 py-1 text-xs text-brand-200">
-              {activeCellDetail.cell.assignments.length} assignment{activeCellDetail.cell.assignments.length === 1 ? '' : 's'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-brand-500/10 px-2 py-1 text-xs text-brand-200">
+                {activeCellDetail.cell.assignments.length} assignment{activeCellDetail.cell.assignments.length === 1 ? '' : 's'}
+              </span>
+              {activeCellDetail.cell.assignments.length > 0 && (
+                <button
+                  type="button"
+                  className="rounded-md border border-brand-500/40 bg-brand-500/10 px-3 py-1 text-xs font-semibold text-brand-100 transition hover:bg-brand-500/20"
+                  onClick={() => openEditDialog({ facultyId: activeCellDetail.cell.facultyId, timeslotId: activeCellDetail.cell.timeslotId })}
+                >
+                  Edit assignments
+                </button>
+              )}
+            </div>
           </header>
 
           {activeCellDetail.cell.assignments.length === 0 ? (
@@ -290,8 +390,35 @@ export const ScheduleGrid = () => {
             </ul>
           )}
 
+          {activeConflicts.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-rose-200">Conflicts</p>
+              <ul className="space-y-2 text-sm text-slate-200">
+                {activeConflicts.map((conflict) => (
+                  <li key={conflict.id} className="rounded-lg border border-white/10 bg-slate-950/60 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{conflict.title}</p>
+                        <p className="text-xs text-slate-300">{conflict.description}</p>
+                      </div>
+                      <span
+                        className={clsx(
+                          'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                          conflictPillClass[conflict.severity],
+                        )}
+                      >
+                        {conflictPillLabel[conflict.severity]}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <p className="mt-4 text-xs text-slate-400">
-            Tip: Use the arrow keys to move between cells. Press Enter to prepare editing in the upcoming swap dialog.
+            Tip: Use the arrow keys to move between cells. Press Enter to prepare editing in the upcoming swap dialog. Conflicted
+            cells show amber or rose indicators.
           </p>
         </div>
       )}

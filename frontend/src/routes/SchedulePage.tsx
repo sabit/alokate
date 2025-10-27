@@ -1,4 +1,5 @@
 import { ConflictPanel } from '../components/schedule/ConflictPanel';
+import { EditDialog } from '../components/schedule/EditDialog/EditDialog';
 import { FilterBar } from '../components/schedule/FilterBar';
 import { ScheduleGrid } from '../components/schedule/ScheduleGrid/ScheduleGrid';
 
@@ -15,5 +16,6 @@ export const SchedulePage = () => (
     </header>
     <ScheduleGrid />
     <ConflictPanel />
+    <EditDialog />
   </div>
 );

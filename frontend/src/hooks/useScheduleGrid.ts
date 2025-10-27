@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { analyzeConflicts, type Conflict, type ConflictSeverity } from '../engine/conflictChecker';
 import { useSchedulerStore } from '../store/schedulerStore';
 import type {
     Building,
@@ -45,6 +46,8 @@ export interface ScheduleGridCell {
   preference: PreferenceLevel;
   isUnfavourable: boolean;
   assignments: GridAssignment[];
+  conflictIds: string[];
+  conflictSeverity: ConflictSeverity | null;
 }
 
 export interface GridRow {
@@ -73,10 +76,13 @@ export interface ScheduleGridData {
   rows: GridRow[];
   unscheduledSections: UnscheduledSection[];
   orphanAssignments: OrphanAssignment[];
+  conflicts: Conflict[];
+  conflictIndex: Record<string, Conflict>;
   summary: {
     totalAssignments: number;
     scheduledSections: number;
     totalSections: number;
+    conflicts: number;
   };
 }
 
@@ -134,6 +140,8 @@ export const useScheduleGrid = (): ScheduleGridData => {
           preference: preferenceValue,
           isUnfavourable: preferenceValue < 0,
           assignments: [],
+          conflictIds: [],
+          conflictSeverity: null,
         };
       });
     });
@@ -202,6 +210,22 @@ export const useScheduleGrid = (): ScheduleGridData => {
       }
     });
 
+    const conflictAnalysis = analyzeConflicts(config, schedule);
+    const conflictIndex = conflictAnalysis.conflicts.reduce<Record<string, Conflict>>((accumulator, conflict) => {
+      accumulator[conflict.id] = conflict;
+      return accumulator;
+    }, {});
+
+    Object.entries(conflictAnalysis.byCell).forEach(([facultyId, timeslotMapSummary]) => {
+      Object.entries(timeslotMapSummary).forEach(([timeslotId, summary]) => {
+        const cell = cells[facultyId]?.[timeslotId];
+        if (cell) {
+          cell.conflictIds = summary.conflictIds;
+          cell.conflictSeverity = summary.severity;
+        }
+      });
+    });
+
     const rows: GridRow[] = faculties.map((faculty) => {
       const facultyCells = timeslots.map((timeslot) => cells[faculty.id][timeslot.id]);
       const assignmentCount = facultyCells.reduce((total, cell) => total + cell.assignments.length, 0);
@@ -236,10 +260,13 @@ export const useScheduleGrid = (): ScheduleGridData => {
       rows,
       unscheduledSections,
       orphanAssignments,
+      conflicts: conflictAnalysis.conflicts,
+      conflictIndex,
       summary: {
         totalAssignments: schedule.length,
         scheduledSections: scheduledSectionIds.size,
         totalSections: config.sections.length,
+        conflicts: conflictAnalysis.conflicts.length,
       },
     };
   }, [config, preferences, schedule]);
