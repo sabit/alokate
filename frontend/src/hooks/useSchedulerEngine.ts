@@ -26,6 +26,7 @@ export const useSchedulerEngine = () => {
       const result = await Promise.resolve(
         executeOptimizer(config, preferences, schedule, {
           seed,
+          weights: settings.weights,
         }),
       );
 
@@ -55,7 +56,7 @@ export const useSchedulerEngine = () => {
     } finally {
       endOperation();
     }
-  }, [beginOperation, config, endOperation, preferences, schedule, settings.optimizerSeed, showError, showSuccess, updateSchedule]);
+  }, [beginOperation, config, endOperation, preferences, schedule, settings.optimizerSeed, settings.weights, showError, showSuccess, updateSchedule]);
 
   return {
     schedule,

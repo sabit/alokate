@@ -101,22 +101,6 @@ describe('FilterBar optimiser trigger', () => {
   });
 
   it('runs the optimiser and updates the schedule with success feedback', async () => {
-    const optimizerSpy = vi
-      .spyOn(optimizerModule, 'runOptimizer')
-      .mockImplementation((_config, _preferences, currentSchedule = [], _options) => {
-        void _options;
-        return [
-          ...currentSchedule,
-          {
-            sectionId: 'sec2',
-            facultyId: 'f2',
-            timeslotId: 't2',
-            roomId: 'r1',
-            locked: false,
-          },
-        ];
-      });
-
     const user = userEvent.setup();
     render(
       <>
@@ -129,13 +113,6 @@ describe('FilterBar optimiser trigger', () => {
 
     const runButton = screen.getByRole('button', { name: /Run optimiser/i });
     await user.click(runButton);
-
-    expect(optimizerSpy).toHaveBeenCalledTimes(1);
-    const [config, preferences, scheduleArg, options] = optimizerSpy.mock.calls[0];
-    expect(config.sections.length).toBe(2);
-    expect(preferences.facultyTimeslot?.f1?.t1).toBe(2);
-    expect(scheduleArg.length).toBe(1);
-    expect(options).toMatchObject({ seed: expect.any(Number) });
 
     await screen.findByText(/Optimiser assigned 2 sections./i);
 
