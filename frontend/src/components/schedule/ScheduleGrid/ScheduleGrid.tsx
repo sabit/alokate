@@ -3,8 +3,11 @@ import type { KeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Conflict, ConflictSeverity } from '../../../engine/conflictChecker';
 import { useScheduleGrid } from '../../../hooks/useScheduleGrid';
+import { useSchedulerStore } from '../../../store/schedulerStore';
 import { useScheduleUiStore } from '../../../store/scheduleUiStore';
 import type { PreferenceLevel } from '../../../types';
+import { ContextMenu } from '../../shared/ContextMenu';
+import { MenuItem } from '../../shared/MenuItem';
 
 const preferenceBadgeClass: Record<PreferenceLevel, string> = {
   '-3': 'bg-rose-900/60 text-rose-200 border-rose-500/40',
@@ -48,13 +51,29 @@ const conflictPillLabel: Record<ConflictSeverity, string> = {
   critical: 'Critical',
 };
 
+interface ContextMenuState {
+  isOpen: boolean;
+  position: { x: number; y: number };
+  facultyId: string | null;
+  timeslotId: string | null;
+}
+
 export const ScheduleGrid = () => {
   const { rows, timeslots, summary, unscheduledSections, orphanAssignments, conflictIndex } = useScheduleGrid();
+
+  const schedule = useSchedulerStore((state) => state.schedule);
+  const updateSchedule = useSchedulerStore((state) => state.updateSchedule);
 
   const activeCell = useScheduleUiStore((state) => state.activeCell);
   const setActiveCell = useScheduleUiStore((state) => state.setActiveCell);
   const openEditDialog = useScheduleUiStore((state) => state.openEditDialog);
   const [hoveredCell, setHoveredCell] = useState<{ facultyId: string; timeslotId: string } | null>(null);
+  const [contextMenuState, setContextMenuState] = useState<ContextMenuState>({
+    isOpen: false,
+    position: { x: 0, y: 0 },
+    facultyId: null,
+    timeslotId: null,
+  });
 
   const cellRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const lastFocusedCellKey = useRef<string | null>(null);
@@ -69,6 +88,46 @@ export const ScheduleGrid = () => {
       delete cellRefs.current[key];
     }
   }, []);
+
+  const openContextMenu = useCallback((facultyId: string, timeslotId: string, x: number, y: number) => {
+    setContextMenuState({
+      isOpen: true,
+      position: { x, y },
+      facultyId,
+      timeslotId,
+    });
+  }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenuState({
+      isOpen: false,
+      position: { x: 0, y: 0 },
+      facultyId: null,
+      timeslotId: null,
+    });
+  }, []);
+
+  const handleContextMenu = useCallback(
+    (event: React.MouseEvent, facultyId: string, timeslotId: string) => {
+      event.preventDefault(); // Prevent default browser context menu
+      openContextMenu(facultyId, timeslotId, event.clientX, event.clientY);
+    },
+    [openContextMenu],
+  );
+
+  const handleClearAssignment = useCallback(() => {
+    if (!contextMenuState.facultyId || !contextMenuState.timeslotId) {
+      return;
+    }
+
+    // Filter schedule entries to remove all entries matching the cell's facultyId and timeslotId
+    const updatedSchedule = schedule.filter(
+      (entry) => !(entry.facultyId === contextMenuState.facultyId && entry.timeslotId === contextMenuState.timeslotId),
+    );
+
+    updateSchedule(updatedSchedule);
+    closeContextMenu();
+  }, [contextMenuState.facultyId, contextMenuState.timeslotId, schedule, updateSchedule, closeContextMenu]);
 
   const hasData = rows.length > 0 && timeslots.length > 0;
 
@@ -97,6 +156,24 @@ export const ScheduleGrid = () => {
       const columnCount = timeslots.length;
       let nextRow = rowIndex;
       let nextColumn = columnIndex;
+
+      // Handle context menu keyboard shortcuts (Shift+F10 or ContextMenu key)
+      if ((event.key === 'F10' && event.shiftKey) || event.key === 'ContextMenu') {
+        event.preventDefault();
+        const row = rows[rowIndex];
+        const cell = row?.cells[columnIndex];
+        if (cell) {
+          // Calculate position relative to the focused cell
+          const key = `${cell.facultyId}-${cell.timeslotId}`;
+          const element = cellRefs.current[key];
+          if (element) {
+            const rect = element.getBoundingClientRect();
+            // Position menu at the center of the cell
+            openContextMenu(cell.facultyId, cell.timeslotId, rect.left + rect.width / 2, rect.top + rect.height / 2);
+          }
+        }
+        return;
+      }
 
       switch (event.key) {
         case 'ArrowUp':
@@ -134,7 +211,7 @@ export const ScheduleGrid = () => {
         focusCell(nextRow, nextColumn);
       }
     },
-    [focusCell, rows, timeslots, setActiveCell, openEditDialog],
+    [focusCell, rows, timeslots, setActiveCell, openEditDialog, openContextMenu, cellRefs],
   );
 
   const activeCellDetail = useMemo(() => {
@@ -166,6 +243,26 @@ export const ScheduleGrid = () => {
     [activeCellDetail, conflictIndex],
   );
 
+  const contextMenuCellAssignments = useMemo(() => {
+    if (!contextMenuState.facultyId || !contextMenuState.timeslotId) {
+      return [];
+    }
+    return schedule.filter(
+      (entry) => entry.facultyId === contextMenuState.facultyId && entry.timeslotId === contextMenuState.timeslotId,
+    );
+  }, [contextMenuState.facultyId, contextMenuState.timeslotId, schedule]);
+
+  const clearAssignmentLabel = useMemo(() => {
+    const count = contextMenuCellAssignments.length;
+    if (count === 0) {
+      return 'Clear Assignment';
+    }
+    if (count === 1) {
+      return 'Clear Assignment';
+    }
+    return `Clear Assignments (${count})`;
+  }, [contextMenuCellAssignments.length]);
+
   useEffect(() => {
     if (!activeCell) {
       lastFocusedCellKey.current = null;
@@ -180,6 +277,14 @@ export const ScheduleGrid = () => {
       lastFocusedCellKey.current = key;
       element.focus();
     }
+  }, [activeCell]);
+
+  // Close context menu when activeCell changes
+  useEffect(() => {
+    if (contextMenuState.isOpen) {
+      closeContextMenu();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCell]);
 
   return (
@@ -262,6 +367,7 @@ export const ScheduleGrid = () => {
                           onMouseLeave={() => setHoveredCell((current) => (current?.facultyId === cell.facultyId && current.timeslotId === cell.timeslotId ? null : current))}
                           onFocus={() => setActiveCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId })}
                           onClick={() => setActiveCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId })}
+                          onContextMenu={(event) => handleContextMenu(event, cell.facultyId, cell.timeslotId)}
                           onKeyDown={(event) => handleKeyNavigation(event, rowIndex, columnIndex)}
                           aria-pressed={isActive}
                           aria-label={accessibleLabel}
@@ -455,6 +561,14 @@ export const ScheduleGrid = () => {
           )}
         </div>
       )}
+
+      <ContextMenu isOpen={contextMenuState.isOpen} position={contextMenuState.position} onClose={closeContextMenu}>
+        <MenuItem
+          label={clearAssignmentLabel}
+          disabled={contextMenuCellAssignments.length === 0}
+          onClick={handleClearAssignment}
+        />
+      </ContextMenu>
     </section>
   );
 };
