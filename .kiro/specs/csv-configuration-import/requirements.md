@@ -62,3 +62,17 @@ This feature enables the Alokate scheduling system to import initial configurati
 3. WHEN the Import Parser encounters missing required fields, THE Configuration System SHALL provide an error message listing the missing field names
 4. WHEN the Import Parser encounters invalid time format, THE Configuration System SHALL provide an error message including the invalid value and expected format
 5. THE Configuration System SHALL continue processing valid records when encountering non-critical errors in individual rows
+
+### Requirement 5
+
+**User Story:** As a scheduler administrator, I want to see a summary of the imported configuration data after successful load, so that I can verify the data was imported correctly
+
+#### Acceptance Criteria
+
+1. WHEN the Configuration System successfully imports configuration data, THE Configuration System SHALL display a summary showing the count of imported entities
+2. THE Configuration System SHALL display the number of faculty members imported
+3. THE Configuration System SHALL display the number of subjects imported
+4. THE Configuration System SHALL display the number of sections imported
+5. THE Configuration System SHALL display the number of timeslots imported
+6. THE Configuration System SHALL display the number of rooms imported
+7. THE Configuration System SHALL display the number of buildings imported

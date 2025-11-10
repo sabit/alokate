@@ -29,6 +29,8 @@ graph TD
     C --> H
     H --> I[schedulerStore.updateConfig]
     I --> J[useSchedulerPersistence]
+    J --> K[ConfigSummary Display]
+    I --> K
 ```
 
 ## Components and Interfaces
@@ -141,8 +143,37 @@ Modify `frontend/src/components/config/ConfigImporter.tsx` to support CSV file s
 3. System validates that both faculty.csv and rooms.csv are present
 4. Parse and transform data
 5. Update config and persist using existing flow
+6. Display configuration summary after successful import
 
-### 4. Time Conversion Utility
+### 4. Configuration Summary Display Component
+
+Create a new component to display imported configuration data summary.
+
+**Component:** `frontend/src/components/config/ConfigSummary.tsx`
+
+**Purpose:** Display a summary of the imported configuration data to provide immediate feedback to users about what was loaded.
+
+**Display Information:**
+- Total count of faculty members
+- Total count of subjects
+- Total count of sections
+- Total count of timeslots
+- Total count of rooms
+- Total count of buildings
+
+**UI Design:**
+- Show as a card or panel below the import buttons
+- Use a grid layout to display counts in an organized manner
+- Include icons or visual indicators for each entity type
+- Highlight the summary with subtle animation when data changes
+- Include a timestamp of when the data was last imported
+
+**Integration:**
+- Component receives `ConfigData` from the scheduler store
+- Automatically updates when configuration changes
+- Shows "No configuration loaded" state when config is empty
+
+### 5. Time Conversion Utility
 
 Add time parsing utility to handle 12-hour to 24-hour conversion.
 

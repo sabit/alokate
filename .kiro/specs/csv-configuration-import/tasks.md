@@ -150,27 +150,40 @@
     - Define `CSVParseError` interface for error handling
     - _Requirements: 1.1, 2.1, 4.2_
 
-- [x] 7. Add tests for CSV functionality
+- [x] 7. Create configuration summary display component
+
+
+
+
+
+  - Create `frontend/src/components/config/ConfigSummary.tsx` component
+  - Display counts for all configuration entities (faculty, subjects, sections, timeslots, rooms, buildings)
+  - Show "No configuration loaded" state when config is empty
+  - Use grid layout for organized display
+  - Add component to the configuration page/view
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_
+
+- [x] 8. Add tests for CSV functionality
 
 
 
 
 
 
-  - [x]* 7.1 Create unit tests for CSV parser
+  - [x]* 8.1 Create unit tests for CSV parser
 
     - Test `parseFacultyCSV()` with valid and invalid data
     - Test `parseRoomsCSV()` with valid and invalid data
     - Test error handling for malformed CSV
     - _Requirements: 1.1, 2.1, 4.2, 4.3_
-  - [x]* 7.2 Create unit tests for time utilities
+  - [x]* 8.2 Create unit tests for time utilities
 
 
     - Test `parseTime12to24()` with various time formats
     - Test `calculateEndTime()` with different durations
     - Test edge cases (midnight, noon)
     - _Requirements: 2.3_
-  - [x]* 7.3 Create unit tests for data transformers
+  - [x]* 8.3 Create unit tests for data transformers
 
 
     - Test `transformFacultyData()` with sample data
@@ -178,7 +191,7 @@
     - Test ID generation and deduplication
     - Test `mergeConfigData()` integration
     - _Requirements: 1.2, 1.3, 1.4, 1.5, 2.2, 2.3, 2.4, 2.5, 3.1_
-  - [x]* 7.4 Create integration tests for ConfigImporter
+  - [x]* 8.4 Create integration tests for ConfigImporter
 
 
     - Test CSV file selection and processing
