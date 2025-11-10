@@ -106,3 +106,27 @@ export interface UnifiedState {
   snapshots: Snapshot[];
   settings: Settings;
 }
+
+// CSV Import Types
+
+export interface ParsedFacultyRow {
+  name: string;
+  initial: string;
+}
+
+export interface ParsedRoomRow {
+  slNo: string;
+  course: string;
+  capacity: number;
+  registration: number;
+  section: string;
+  slotDay: string;
+  slotTime: string;
+  room: string;
+}
+
+export interface CSVParseError {
+  message: string;
+  row?: number;
+  field?: string;
+}
