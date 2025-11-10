@@ -60,16 +60,18 @@ describe('CSV Transformer', () => {
       expect(result[0]).toEqual({
         id: 'faculty-am',
         name: 'Dr. Kh. Abdul Maleque',
-        maxSections: 3,
+        initial: 'AM',
+        maxSections: 4,
         maxOverload: 1,
-        canOverload: true,
+        canOverload: false,
       });
       expect(result[1]).toEqual({
         id: 'faculty-ju',
         name: 'Dr. Md Jashim Uddin',
-        maxSections: 3,
+        initial: 'JU',
+        maxSections: 4,
         maxOverload: 1,
-        canOverload: true,
+        canOverload: false,
       });
     });
 

@@ -121,9 +121,10 @@ export function transformFacultyData(rows: ParsedFacultyRow[]): Faculty[] {
     faculty.push({
       id,
       name,
-      maxSections: 3,
+      initial,
+      maxSections: 4,
       maxOverload: 1,
-      canOverload: true,
+      canOverload: false,
     });
   }
 

@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import type { ConfigData } from '../../types';
+import { useMemo, useState } from 'react';
+import { useSchedulerStore } from '../../store/schedulerStore';
+import type { ConfigData, Faculty } from '../../types';
 
 interface ConfigDataTablesProps {
   config: ConfigData;
@@ -7,6 +8,7 @@ interface ConfigDataTablesProps {
 
 export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const updateConfig = useSchedulerStore((state) => state.updateConfig);
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => {
@@ -30,6 +32,19 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
     config.rooms.length === 0 &&
     config.buildings.length === 0;
 
+  // Sort timeslots by label
+  const sortedTimeslots = useMemo(
+    () => [...config.timeslots].sort((a, b) => a.label.localeCompare(b.label)),
+    [config.timeslots],
+  );
+
+  const updateFaculty = (facultyId: string, updates: Partial<Faculty>) => {
+    const updatedFaculty = config.faculty.map((f) =>
+      f.id === facultyId ? { ...f, ...updates } : f,
+    );
+    updateConfig({ ...config, faculty: updatedFaculty });
+  };
+
   if (isEmpty) {
     return null;
   }
@@ -52,10 +67,10 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                 <thead className="bg-slate-900/60">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      ID
+                      Name
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Name
+                      Initial
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
                       Max Sections
@@ -70,13 +85,46 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {config.faculty.map((faculty) => (
-                    <tr key={faculty.id} className="hover:bg-white/5">
-                      <td className="px-4 py-2 text-sm text-slate-300">{faculty.id}</td>
+                    <tr key={faculty.id} className="hover:bg-white/5" data-id={faculty.id}>
                       <td className="px-4 py-2 text-sm text-slate-300">{faculty.name}</td>
-                      <td className="px-4 py-2 text-sm text-slate-300">{faculty.maxSections}</td>
-                      <td className="px-4 py-2 text-sm text-slate-300">{faculty.maxOverload}</td>
-                      <td className="px-4 py-2 text-sm text-slate-300">
-                        {faculty.canOverload ? 'Yes' : 'No'}
+                      <td className="px-4 py-2 text-sm text-slate-300">{faculty.initial}</td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          value={faculty.maxSections}
+                          onChange={(e) =>
+                            updateFaculty(faculty.id, {
+                              maxSections: parseInt(e.target.value, 10) || 0,
+                            })
+                          }
+                          className="w-20 rounded border border-white/10 bg-slate-800 px-2 py-1 text-sm text-slate-300 focus:border-blue-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="5"
+                          value={faculty.maxOverload}
+                          onChange={(e) =>
+                            updateFaculty(faculty.id, {
+                              maxOverload: parseInt(e.target.value, 10) || 0,
+                            })
+                          }
+                          className="w-20 rounded border border-white/10 bg-slate-800 px-2 py-1 text-sm text-slate-300 focus:border-blue-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="checkbox"
+                          checked={faculty.canOverload}
+                          onChange={(e) =>
+                            updateFaculty(faculty.id, { canOverload: e.target.checked })
+                          }
+                          className="h-4 w-4 rounded border-white/10 bg-slate-800 text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                        />
                       </td>
                     </tr>
                   ))}
@@ -103,9 +151,6 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                 <thead className="bg-slate-900/60">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      ID
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
                       Code
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -115,8 +160,7 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {config.subjects.map((subject) => (
-                    <tr key={subject.id} className="hover:bg-white/5">
-                      <td className="px-4 py-2 text-sm text-slate-300">{subject.id}</td>
+                    <tr key={subject.id} className="hover:bg-white/5" data-id={subject.id}>
                       <td className="px-4 py-2 text-sm text-slate-300">{subject.code}</td>
                       <td className="px-4 py-2 text-sm text-slate-300">{subject.name}</td>
                     </tr>
@@ -144,9 +188,6 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                 <thead className="bg-slate-900/60">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      ID
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
                       Label
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -161,9 +202,8 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {config.timeslots.map((timeslot) => (
-                    <tr key={timeslot.id} className="hover:bg-white/5">
-                      <td className="px-4 py-2 text-sm text-slate-300">{timeslot.id}</td>
+                  {sortedTimeslots.map((timeslot) => (
+                    <tr key={timeslot.id} className="hover:bg-white/5" data-id={timeslot.id}>
                       <td className="px-4 py-2 text-sm text-slate-300">{timeslot.label}</td>
                       <td className="px-4 py-2 text-sm text-slate-300">{timeslot.day}</td>
                       <td className="px-4 py-2 text-sm text-slate-300">{timeslot.start}</td>
@@ -193,17 +233,13 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                 <thead className="bg-slate-900/60">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      ID
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Label
+                      Name
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {config.buildings.map((building) => (
-                    <tr key={building.id} className="hover:bg-white/5">
-                      <td className="px-4 py-2 text-sm text-slate-300">{building.id}</td>
+                    <tr key={building.id} className="hover:bg-white/5" data-id={building.id}>
                       <td className="px-4 py-2 text-sm text-slate-300">{building.label}</td>
                     </tr>
                   ))}
@@ -230,10 +266,7 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                 <thead className="bg-slate-900/60">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      ID
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Label
+                      Room
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
                       Building
@@ -247,8 +280,7 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                   {config.rooms.map((room) => {
                     const building = config.buildings.find((b) => b.id === room.buildingId);
                     return (
-                      <tr key={room.id} className="hover:bg-white/5">
-                        <td className="px-4 py-2 text-sm text-slate-300">{room.id}</td>
+                      <tr key={room.id} className="hover:bg-white/5" data-id={room.id}>
                         <td className="px-4 py-2 text-sm text-slate-300">{room.label}</td>
                         <td className="px-4 py-2 text-sm text-slate-300">
                           {building?.label || room.buildingId}
@@ -280,9 +312,6 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                 <thead className="bg-slate-900/60">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      ID
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
                       Subject
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -302,8 +331,7 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                     const timeslot = config.timeslots.find((t) => t.id === section.timeslotId);
                     const room = config.rooms.find((r) => r.id === section.roomId);
                     return (
-                      <tr key={section.id} className="hover:bg-white/5">
-                        <td className="px-4 py-2 text-sm text-slate-300">{section.id}</td>
+                      <tr key={section.id} className="hover:bg-white/5" data-id={section.id}>
                         <td className="px-4 py-2 text-sm text-slate-300">
                           {subject ? `${subject.code} - ${subject.name}` : section.subjectId}
                         </td>

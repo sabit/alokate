@@ -1,6 +1,7 @@
 export interface Faculty {
   id: string;
   name: string;
+  initial: string;
   maxSections: number;
   maxOverload: number;
   canOverload: boolean;
