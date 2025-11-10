@@ -73,8 +73,13 @@ const matrixColumnMeta: Record<MatrixView, (config: ConfigData) => Array<{ id: s
     })),
 };
 
+const sortColumns = (columns: Array<{ id: string; label: string }>): Array<{ id: string; label: string }> => {
+  return [...columns].sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
+};
+
 export const PreferenceMatrix = () => {
   const [activeView, setActiveView] = useState<PreferenceView>('subjects');
+  const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
   const { preferences, updatePreferences } = usePreferences();
   const config = useSchedulerStore((state) => state.config);
   const { success: showSuccess, error: showError } = useToast();
@@ -107,7 +112,8 @@ export const PreferenceMatrix = () => {
     if (!isMatrixView(activeView)) {
       return [] as Array<{ id: string; label: string }>;
     }
-    return matrixColumnMeta[activeView](config);
+    const unsortedColumns = matrixColumnMeta[activeView](config);
+    return sortColumns(unsortedColumns);
   }, [activeView, config]);
 
   const getValue = useCallback(
@@ -158,6 +164,28 @@ export const PreferenceMatrix = () => {
       setValue(facultyId, columnIdValue, nextNumeric as PreferenceLevel);
     },
     [getValue, setValue],
+  );
+
+  const calculatePreferenceCounts = useCallback(
+    (columnId: string): Record<PreferenceLevel, number> => {
+      const counts: Record<PreferenceLevel, number> = {
+        '-3': 0,
+        '-2': 0,
+        '-1': 0,
+        '0': 0,
+        '1': 0,
+        '2': 0,
+        '3': 0,
+      };
+
+      faculties.forEach((faculty) => {
+        const value = getValue(faculty.id, columnId);
+        counts[value]++;
+      });
+
+      return counts;
+    },
+    [faculties, getValue],
   );
 
   const handleFillNeutral = useCallback(async () => {
@@ -236,6 +264,7 @@ export const PreferenceMatrix = () => {
     if (activeView === 'mobility') {
       return (
         <div className="space-y-4">
+          <p className="text-sm text-slate-400">Higher values penalise cross-building moves less.</p>
           {faculties.map((faculty) => (
             <div
               key={faculty.id}
@@ -243,7 +272,6 @@ export const PreferenceMatrix = () => {
             >
               <div>
                 <p className="font-medium text-slate-100">{faculty.name}</p>
-                <p className="text-xs text-slate-400">Higher values penalise cross-building moves less.</p>
               </div>
               <div className="flex items-center gap-3">
                 <input
@@ -274,16 +302,34 @@ export const PreferenceMatrix = () => {
     }
 
     return (
-      <div className="overflow-auto">
+      <div className="max-h-[600px] overflow-auto rounded-lg border border-white/5">
         <table className="min-w-full divide-y divide-white/5 text-sm">
           <thead>
-            <tr className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-400">
-              <th scope="col" className="sticky left-0 z-10 bg-slate-900/80 px-4 py-3 font-semibold text-slate-300">
+            <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+              <th scope="col" className="sticky left-0 top-0 z-30 bg-slate-900 px-4 py-3 font-semibold text-slate-300">
                 Faculty
               </th>
               {columns.map((column) => (
-                <th key={column.id} scope="col" className="px-4 py-3 font-semibold">
+                <th
+                  key={column.id}
+                  scope="col"
+                  className="relative sticky top-0 z-20 bg-slate-900 px-4 py-3 font-semibold"
+                  onMouseEnter={() => setHoveredColumn(column.id)}
+                  onMouseLeave={() => setHoveredColumn(null)}
+                >
                   {column.label}
+                  {hoveredColumn === column.id && (
+                    <div className="absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 rounded-lg border border-white/10 bg-slate-900 p-3 text-xs shadow-xl">
+                      <div className="space-y-1">
+                        {Object.entries(calculatePreferenceCounts(column.id)).map(([level, count]) => (
+                          <div key={level} className="flex justify-between gap-4">
+                            <span className="font-medium">{Number(level) > 0 ? `+${level}` : level}:</span>
+                            <span className="text-slate-400">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </th>
               ))}
             </tr>
@@ -293,7 +339,7 @@ export const PreferenceMatrix = () => {
               <tr key={faculty.id} className="bg-slate-950/40">
                 <th
                   scope="row"
-                  className="sticky left-0 z-10 bg-slate-950/60 px-4 py-3 text-left text-sm font-medium text-slate-100"
+                  className="sticky left-0 z-10 bg-slate-950 px-4 py-3 text-left text-sm font-medium text-slate-100"
                 >
                   <div>{faculty.name}</div>
                   <div className="text-xs text-slate-500">Max sections {faculty.maxSections}</div>
