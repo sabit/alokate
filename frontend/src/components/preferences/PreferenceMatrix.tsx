@@ -321,12 +321,25 @@ export const PreferenceMatrix = () => {
                   {hoveredColumn === column.id && (
                     <div className="absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 rounded-lg border border-white/10 bg-slate-900 p-3 text-xs shadow-xl">
                       <div className="space-y-1">
-                        {Object.entries(calculatePreferenceCounts(column.id)).map(([level, count]) => (
-                          <div key={level} className="flex justify-between gap-4">
-                            <span className="font-medium">{Number(level) > 0 ? `+${level}` : level}:</span>
-                            <span className="text-slate-400">{count}</span>
-                          </div>
-                        ))}
+                        {([3, 2, 1, 0, -1, -2, -3] as PreferenceLevel[]).map((level) => {
+                          const count = calculatePreferenceCounts(column.id)[level];
+                          const colorClass = level === 3 ? 'bg-emerald-400' :
+                                           level === 2 ? 'bg-emerald-500' :
+                                           level === 1 ? 'bg-emerald-700' :
+                                           level === 0 ? 'bg-slate-600' :
+                                           level === -1 ? 'bg-amber-600' :
+                                           level === -2 ? 'bg-rose-500' :
+                                           'bg-rose-600';
+                          return (
+                            <div key={level} className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-2">
+                                <span className={`h-3 w-3 rounded-full ${colorClass}`} />
+                                <span className="font-medium">{level > 0 ? `+${level}` : level}</span>
+                              </div>
+                              <span className="text-slate-400">{count}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
