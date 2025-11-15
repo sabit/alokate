@@ -37,8 +37,8 @@ const buildEmptyState = (): UnifiedState => ({
 const buildPopulatedState = (): UnifiedState => ({
   config: {
     faculty: [
-      { id: 'f1', name: 'Dr. Ada Lovelace', maxSections: 3, maxOverload: 1, canOverload: true },
-      { id: 'f2', name: 'Dr. Grace Hopper', maxSections: 2, maxOverload: 0, canOverload: false },
+      { id: 'f1', name: 'Dr. Ada Lovelace', initial: 'AL', maxSections: 3, maxOverload: 1, canOverload: true },
+      { id: 'f2', name: 'Dr. Grace Hopper', initial: 'GH', maxSections: 2, maxOverload: 0, canOverload: false },
     ],
     subjects: [
       { id: 's1', name: 'Algorithms', code: 'CS101' },

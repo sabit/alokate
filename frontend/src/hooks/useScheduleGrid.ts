@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { analyzeConflicts, type Conflict, type ConflictSeverity } from '../engine/conflictChecker';
 import { useSchedulerStore } from '../store/schedulerStore';
+import type { SortConfig } from '../store/scheduleUiStore';
 import type {
     Building,
     PreferenceLevel,
@@ -97,7 +98,11 @@ const toPreferenceLevel = (value: number | undefined): PreferenceLevel => {
   return numeric as PreferenceLevel;
 };
 
-export const useScheduleGrid = (): ScheduleGridData => {
+export interface UseScheduleGridOptions {
+  dayFilter?: Set<string>;
+}
+
+export const useScheduleGrid = (options?: UseScheduleGridOptions): ScheduleGridData => {
   const { config, preferences, schedule } = useSchedulerStore((state) => ({
     config: state.config,
     preferences: state.preferences,
@@ -113,13 +118,32 @@ export const useScheduleGrid = (): ScheduleGridData => {
       canOverload: faculty.canOverload,
     }));
 
-    const timeslots: GridTimeslot[] = config.timeslots.map((timeslot) => ({
-      id: timeslot.id,
-      label: timeslot.label,
-      day: timeslot.day,
-      start: timeslot.start,
-      end: timeslot.end,
-    }));
+    const dayOrder = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    // Sort timeslots chronologically (by day then time)
+    const timeslots: GridTimeslot[] = config.timeslots
+      .map((timeslot) => ({
+        id: timeslot.id,
+        label: timeslot.label,
+        day: timeslot.day,
+        start: timeslot.start,
+        end: timeslot.end,
+      }))
+      .sort((a, b) => {
+        // First sort by day
+        const dayComparison = dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+        if (dayComparison !== 0) {
+          return dayComparison;
+        }
+        // Then sort by start time
+        return a.start.localeCompare(b.start);
+      });
+
+    // Apply day filter
+    let sortedTimeslots = timeslots;
+    if (options?.dayFilter && options.dayFilter.size > 0) {
+      sortedTimeslots = timeslots.filter((slot) => options.dayFilter!.has(slot.day));
+    }
 
     const facultyById = new Map(faculties.map((faculty) => [faculty.id, faculty]));
     const timeslotById = new Map(timeslots.map((timeslot) => [timeslot.id, timeslot]));
@@ -132,6 +156,7 @@ export const useScheduleGrid = (): ScheduleGridData => {
     faculties.forEach((faculty) => {
       const facultyPreferences = preferences.facultyTimeslot?.[faculty.id] ?? {};
       cells[faculty.id] = {};
+      // Create cells for all timeslots (not just filtered/sorted ones)
       timeslots.forEach((timeslot) => {
         const preferenceValue = toPreferenceLevel(facultyPreferences[timeslot.id]);
         cells[faculty.id][timeslot.id] = {
@@ -227,7 +252,8 @@ export const useScheduleGrid = (): ScheduleGridData => {
     });
 
     const rows: GridRow[] = faculties.map((faculty) => {
-      const facultyCells = timeslots.map((timeslot) => cells[faculty.id][timeslot.id]);
+      // Use sortedTimeslots for cell order
+      const facultyCells = sortedTimeslots.map((timeslot) => cells[faculty.id][timeslot.id]);
       const assignmentCount = facultyCells.reduce((total, cell) => total + cell.assignments.length, 0);
       return {
         faculty,
@@ -256,7 +282,7 @@ export const useScheduleGrid = (): ScheduleGridData => {
 
     return {
       faculties,
-      timeslots,
+      timeslots: sortedTimeslots,
       rows,
       unscheduledSections,
       orphanAssignments,
@@ -269,5 +295,5 @@ export const useScheduleGrid = (): ScheduleGridData => {
         conflicts: conflictAnalysis.conflicts.length,
       },
     };
-  }, [config, preferences, schedule]);
+  }, [config, preferences, schedule, options?.dayFilter]);
 };

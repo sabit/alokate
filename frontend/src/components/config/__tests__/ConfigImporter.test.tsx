@@ -72,7 +72,7 @@ describe('ConfigImporter', () => {
     ]);
 
     transformFacultySpy.mockReturnValue([
-      { id: 'faculty-am', name: 'Dr. Test', maxSections: 3, maxOverload: 1, canOverload: true },
+      { id: 'faculty-am', name: 'Dr. Test', initial: 'AM', maxSections: 3, maxOverload: 1, canOverload: true },
     ]);
 
     transformRoomsSpy.mockReturnValue({

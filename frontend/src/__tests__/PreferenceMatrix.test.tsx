@@ -50,7 +50,7 @@ const buildEmptyUnifiedState = (): UnifiedState => ({
 const buildTestUnifiedState = (): UnifiedState => ({
   config: {
     faculty: [
-  { id: 'f1', name: 'Dr. Ada Lovelace', maxSections: 3, maxOverload: 1, canOverload: true },
+  { id: 'f1', name: 'Dr. Ada Lovelace', initial: 'AL', maxSections: 3, maxOverload: 1, canOverload: true },
     ],
     subjects: [
       { id: 's1', name: 'Algorithms', code: 'CS101' },

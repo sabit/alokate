@@ -23,8 +23,8 @@ describe('ConfigSummary', () => {
   it('displays counts for all configuration entities', () => {
     const config: ConfigData = {
       faculty: [
-        { id: 'f1', name: 'Faculty 1', maxSections: 3, maxOverload: 1, canOverload: true },
-        { id: 'f2', name: 'Faculty 2', maxSections: 3, maxOverload: 1, canOverload: true },
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 3, maxOverload: 1, canOverload: true },
+        { id: 'f2', name: 'Faculty 2', initial: 'F2', maxSections: 3, maxOverload: 1, canOverload: true },
       ],
       subjects: [
         { id: 's1', name: 'Subject 1', code: 'S1' },

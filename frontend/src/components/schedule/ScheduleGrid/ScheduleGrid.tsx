@@ -8,6 +8,7 @@ import { useScheduleUiStore } from '../../../store/scheduleUiStore';
 import type { PreferenceLevel } from '../../../types';
 import { ContextMenu } from '../../shared/ContextMenu';
 import { MenuItem } from '../../shared/MenuItem';
+import { TimeslotHeader } from './SortableTimeslotHeader';
 
 const preferenceBadgeClass: Record<PreferenceLevel, string> = {
   '-3': 'bg-rose-900/60 text-rose-200 border-rose-500/40',
@@ -59,10 +60,16 @@ interface ContextMenuState {
 }
 
 export const ScheduleGrid = () => {
-  const { rows, timeslots, summary, unscheduledSections, orphanAssignments, conflictIndex } = useScheduleGrid();
+  const dayFilter = useScheduleUiStore((state) => state.dayFilter);
+  const initializeDayFilter = useScheduleUiStore((state) => state.initializeDayFilter);
+  
+  const { rows, timeslots, summary, unscheduledSections, orphanAssignments, conflictIndex } = useScheduleGrid({
+    dayFilter: dayFilter.selectedDays.size > 0 ? dayFilter.selectedDays : undefined,
+  });
 
   const schedule = useSchedulerStore((state) => state.schedule);
   const updateSchedule = useSchedulerStore((state) => state.updateSchedule);
+  const config = useSchedulerStore((state) => state.config);
 
   const activeCell = useScheduleUiStore((state) => state.activeCell);
   const setActiveCell = useScheduleUiStore((state) => state.setActiveCell);
@@ -130,6 +137,8 @@ export const ScheduleGrid = () => {
   }, [contextMenuState.facultyId, contextMenuState.timeslotId, schedule, updateSchedule, closeContextMenu]);
 
   const hasData = rows.length > 0 && timeslots.length > 0;
+  const hasFiltersApplied = dayFilter.selectedDays.size > 0;
+  const allTimeslotsCount = config.timeslots.length;
 
   const conflictSummaryText = summary.conflicts === 0 ? 'No conflicts flagged' : `${summary.conflicts} conflict${summary.conflicts === 1 ? '' : 's'} flagged`;
 
@@ -287,6 +296,14 @@ export const ScheduleGrid = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCell]);
 
+  // Initialize day filter with available days from config
+  useEffect(() => {
+    const availableDays = Array.from(new Set(config.timeslots.map((slot) => slot.day)));
+    if (availableDays.length > 0) {
+      initializeDayFilter(availableDays);
+    }
+  }, [config.timeslots, initializeDayFilter]);
+
   return (
     <section className="space-y-4 rounded-xl border border-white/5 bg-slate-950/60 p-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -299,30 +316,39 @@ export const ScheduleGrid = () => {
       </header>
 
       {!hasData && (
-        <div className="grid h-[360px] place-items-center rounded-lg border border-dashed border-white/10 bg-slate-950/50 text-slate-500">
-          Add faculty, timeslots, and run the optimiser to populate the schedule grid.
+        <div className="grid h-[360px] place-items-center rounded-lg border border-dashed border-white/10 bg-slate-950/50">
+          <div className="text-center">
+            <p className="text-sm font-medium text-slate-400">
+              {hasFiltersApplied && allTimeslotsCount > 0
+                ? 'No timeslots match the selected filters'
+                : 'No schedule data available'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {hasFiltersApplied && allTimeslotsCount > 0
+                ? 'Try selecting different days or clearing the filters'
+                : rows.length === 0 && timeslots.length === 0
+                  ? 'Add faculty and timeslots to get started'
+                  : rows.length === 0
+                    ? 'Add faculty members to populate the schedule'
+                    : 'Add timeslots to populate the schedule'}
+            </p>
+          </div>
         </div>
       )}
 
       {hasData && (
         <div className="overflow-auto">
-          <table className="min-w-full border-separate border-spacing-0 text-sm">
-            <thead>
-              <tr>
-                <th className="sticky left-0 top-0 z-20 bg-slate-950 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Faculty
-                </th>
-                {timeslots.map((timeslot) => (
-                  <th
-                    key={timeslot.id}
-                    className="sticky top-0 z-10 min-w-[180px] bg-slate-950 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"
-                  >
-                    <div className="text-slate-200">{timeslot.label}</div>
-                    <div className="text-[11px] text-slate-500">{timeslot.day}</div>
+            <table className="min-w-full border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 top-0 z-20 bg-slate-950 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Faculty
                   </th>
-                ))}
-              </tr>
-            </thead>
+                  {timeslots.map((timeslot) => (
+                    <TimeslotHeader key={timeslot.id} timeslot={timeslot} />
+                  ))}
+                </tr>
+              </thead>
             <tbody>
               {rows.map((row, rowIndex) => (
                 <tr key={row.faculty.id} className="border-t border-white/5">
