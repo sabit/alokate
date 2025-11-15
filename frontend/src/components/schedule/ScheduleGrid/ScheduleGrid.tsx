@@ -6,6 +6,7 @@ import { useScheduleGrid } from '../../../hooks/useScheduleGrid';
 import { useSchedulerStore } from '../../../store/schedulerStore';
 import { useScheduleUiStore } from '../../../store/scheduleUiStore';
 import type { PreferenceLevel } from '../../../types';
+import { getInitials } from '../../../utils/formatters';
 import { ContextMenu } from '../../shared/ContextMenu';
 import { MenuItem } from '../../shared/MenuItem';
 import { TimeslotHeader } from './SortableTimeslotHeader';
@@ -350,18 +351,37 @@ export const ScheduleGrid = () => {
                 </tr>
               </thead>
             <tbody>
-              {rows.map((row, rowIndex) => (
-                <tr key={row.faculty.id} className="border-t border-white/5">
-                  <th
-                    scope="row"
-                    className="sticky left-0 z-10 bg-slate-950 px-3 py-3 text-left text-sm font-semibold text-slate-100"
-                  >
-                    <div>{row.faculty.name}</div>
-                    <div className="text-[11px] font-normal text-slate-500">
-                      {row.totalAssignments} assigned · Max {row.faculty.maxSections}
-                      {row.faculty.canOverload ? ` (+${row.faculty.maxOverload} overload)` : ''}
-                    </div>
-                  </th>
+              {rows.map((row, rowIndex) => {
+                const maxCapacity = row.faculty.canOverload 
+                  ? row.faculty.maxSections + row.faculty.maxOverload 
+                  : row.faculty.maxSections;
+                const utilization = maxCapacity > 0 ? row.totalAssignments / maxCapacity : 0;
+                
+                // Determine color based on utilization
+                let utilizationColor = 'text-amber-400'; // Default (under-utilized)
+                if (utilization > 1) {
+                  utilizationColor = 'text-rose-400'; // Over capacity
+                } else if (utilization >= 0.9) {
+                  utilizationColor = 'text-emerald-400'; // Full/optimal utilization (90-100%)
+                }
+                
+                return (
+                  <tr key={row.faculty.id} className="border-t border-white/5">
+                    <th
+                      scope="row"
+                      className="sticky left-0 z-10 bg-slate-950 px-3 py-3 text-center text-sm font-semibold text-slate-100"
+                      title={row.faculty.name}
+                    >
+                      <div className="flex justify-center">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500/20 text-xs font-bold text-brand-200">
+                          {getInitials(row.faculty.name)}
+                        </div>
+                        <span className="sr-only">{row.faculty.name}</span>
+                      </div>
+                      <div className={`text-[11px] font-medium ${utilizationColor}`}>
+                        {row.totalAssignments}/{maxCapacity}
+                      </div>
+                    </th>
                   {row.cells.map((cell, columnIndex) => {
                     const hasAssignments = cell.assignments.length > 0;
                     const key = `${cell.facultyId}-${cell.timeslotId}`;
@@ -372,14 +392,38 @@ export const ScheduleGrid = () => {
                       cell.conflictIds.length > 0 && cell.conflictSeverity
                         ? `, ${cell.conflictIds.length} conflict${cell.conflictIds.length === 1 ? '' : 's'} (${cell.conflictSeverity})`
                         : '';
+                    
+                    // Build detailed tooltip
+                    const tooltipParts = [
+                      `${row.faculty.name} at ${timeslotLabel}`,
+                      `Preference: ${formatPreference(cell.preference)}`,
+                    ];
+                    
+                    if (hasAssignments) {
+                      cell.assignments.forEach((assignment) => {
+                        const assignmentDetails = [
+                          assignment.subjectCode || assignment.subjectName,
+                          assignment.roomLabel && `Room: ${assignment.roomLabel}`,
+                          assignment.buildingLabel && `Building: ${assignment.buildingLabel}`,
+                        ].filter(Boolean).join(' • ');
+                        tooltipParts.push(assignmentDetails);
+                      });
+                    }
+                    
+                    if (conflictDescription) {
+                      tooltipParts.push(conflictDescription.substring(2)); // Remove leading ", "
+                    }
+                    
+                    const tooltipText = tooltipParts.join('\n');
                     const accessibleLabel = `${row.faculty.name} at ${timeslotLabel}, preference ${formatPreference(cell.preference)}${conflictDescription}`;
+                    
                     return (
-                      <td key={key} className="px-2 py-2 align-top">
+                      <td key={key} className="px-1.5 py-1.5 align-top">
                         <button
                           type="button"
                           ref={(node) => registerCellRef(key, node)}
                           className={clsx(
-                            'relative flex h-full w-full min-h-[96px] flex-col gap-2 rounded-md border px-2 py-2 text-left shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400',
+                            'relative flex h-full w-full min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400',
                             preferenceBadgeClass[cell.preference],
                             cell.conflictSeverity && conflictBorderClass[cell.conflictSeverity],
                             {
@@ -397,53 +441,49 @@ export const ScheduleGrid = () => {
                           onKeyDown={(event) => handleKeyNavigation(event, rowIndex, columnIndex)}
                           aria-pressed={isActive}
                           aria-label={accessibleLabel}
-                          title={accessibleLabel}
+                          title={tooltipText}
                         >
-                          <div className="flex flex-wrap gap-1 text-xs font-medium">
+                          {/* Dog ear indicator for conflicts */}
+                          {cell.conflictIds.length > 0 && cell.conflictSeverity && (
+                            <div 
+                              className={clsx(
+                                'absolute right-0 top-0 h-0 w-0 border-8 border-l-transparent border-b-transparent',
+                                cell.conflictSeverity === 'critical' && 'border-t-rose-500 border-r-rose-500',
+                                cell.conflictSeverity === 'warning' && 'border-t-amber-400 border-r-amber-400',
+                                cell.conflictSeverity === 'info' && 'border-t-sky-400 border-r-sky-400',
+                              )}
+                              aria-hidden="true"
+                            />
+                          )}
+                          
+                          <div className="flex flex-wrap justify-center gap-1">
                             {hasAssignments
                               ? cell.assignments.map((assignment) => (
                                   <span
                                     key={assignment.sectionId}
-                                    className="inline-flex items-center gap-1 rounded bg-black/30 px-1.5 py-0.5 text-[11px] text-slate-100"
+                                    className="inline-block rounded bg-black/30 px-1.5 py-0.5 text-xs font-semibold text-slate-50"
                                   >
-                                    <span>{assignment.subjectCode ?? assignment.subjectName}</span>
-                                    {assignment.roomLabel && <span className="text-[10px] text-slate-400">· {assignment.roomLabel}</span>}
+                                    {assignment.subjectCode ?? assignment.subjectName}
                                   </span>
                                 ))
                               : (
-                                  <span className="text-xs text-slate-400">No assignment</span>
+                                  <span className="text-xs text-slate-400">—</span>
                                 )}
                           </div>
-                          <div className="mt-auto space-y-1 text-[11px]">
-                            {cell.conflictIds.length > 0 && cell.conflictSeverity && (
-                              <div
-                                className={clsx(
-                                  'inline-flex items-center gap-1 font-semibold uppercase tracking-wide',
-                                  conflictTextClass[cell.conflictSeverity],
-                                )}
-                              >
-                                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
-                                <span>
-                                  {conflictDisplayLabel[cell.conflictSeverity]}
-                                  {cell.conflictIds.length > 1 ? ` (${cell.conflictIds.length})` : ''}
-                                </span>
-                              </div>
-                            )}
-                            <div className="flex items-center justify-between text-slate-300">
-                              <span>Preference {formatPreference(cell.preference)}</span>
-                              {hasAssignments && cell.assignments.length > 1 && (
-                                <span className="rounded bg-black/20 px-1 text-[10px] text-slate-200">
-                                  {cell.assignments.length} items
-                                </span>
-                              )}
+                          {hasAssignments && cell.assignments.length > 1 && (
+                            <div className="absolute bottom-1 right-1">
+                              <span className="rounded bg-black/20 px-1 py-0.5 text-[9px] text-slate-300">
+                                ×{cell.assignments.length}
+                              </span>
                             </div>
-                          </div>
+                          )}
                         </button>
                       </td>
                     );
                   })}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
