@@ -252,6 +252,7 @@ export const analyzeConflicts = (config: ConfigData, schedule: ScheduleEntry[]):
     }
     const hardLimit = faculty.maxSections + (faculty.canOverload ? faculty.maxOverload : 0);
     const preferredLimit = faculty.maxSections;
+    
     if (entries.length > hardLimit) {
       const conflict = buildConflict({
         id: `faculty-load:${facultyId}:critical`,
@@ -263,16 +264,20 @@ export const analyzeConflicts = (config: ConfigData, schedule: ScheduleEntry[]):
       registerConflict(conflict, entries);
       return;
     }
-    if (entries.length > preferredLimit) {
+    
+    // Only show warning if faculty cannot overload and exceeds preferred limit
+    if (entries.length > preferredLimit && !faculty.canOverload) {
+      // Faculty cannot overload - any excess is a warning
       const conflict = buildConflict({
         id: `faculty-load:${facultyId}:warning`,
-        title: 'Faculty overload nearing limit',
+        title: 'Faculty over preferred limit',
         description: `${faculty.name} has ${entries.length} sections, above the preferred limit of ${preferredLimit}.`,
         severity: 'warning',
         entries,
       });
       registerConflict(conflict, entries);
     }
+    // If faculty can overload and is within hardLimit, no warning is shown
   });
 
   conflicts.sort((a, b) => {

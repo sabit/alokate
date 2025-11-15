@@ -29,6 +29,7 @@ const scheduleEntrySchema = z.object({
       preference: z.number(),
       mobility: z.number(),
       seniority: z.number(),
+      capacityPenalty: z.number(),
       total: z.number(),
     })
     .partial()

@@ -74,6 +74,7 @@ const buildPopulatedState = (): UnifiedState => ({
         preference: 1.5,
         mobility: -0.2,
         seniority: 0.5,
+        capacityPenalty: 0,
         total: 1.8,
       },
     },

@@ -63,6 +63,7 @@ export interface ScoreBreakdown {
   preference: number;
   mobility: number;
   seniority: number;
+  capacityPenalty: number;
   total: number;
 }
 
