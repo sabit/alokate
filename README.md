@@ -1,14 +1,16 @@
 # Alokate – University Faculty Scheduler
 
-A Cloudflare-native, offline-capable scheduling tool for faculty assignments. The project is organized as an npm workspace with a React frontend (`frontend/`) and a Cloudflare Worker backend (`worker/`).
+A standalone, browser-based scheduling tool for faculty assignments. The application runs entirely in the browser with no backend required, using IndexedDB for local data persistence and full offline capability.
 
 ## Project Status
 
-- ✅ Workspace scaffolding for frontend and worker projects
-- ✅ Lint, test, and build pipelines wired up
-- ✅ Basic authentication flow and layout shell in place
+- ✅ Standalone browser-based architecture with no backend dependencies
+- ✅ Local data persistence using IndexedDB
+- ✅ Auto-save functionality with visual indicators
+- ✅ Import/export for data backup and sharing
+- ✅ Snapshot management for saving schedule versions
+- ✅ Full offline capability
 - ⚠️ Scheduling engine, diff viewer, and preference tooling currently use placeholder logic
-- ⚠️ Cloudflare Worker persists data in memory; D1/KV wiring pending
 
 ## Getting Started
 
@@ -18,19 +20,13 @@ A Cloudflare-native, offline-capable scheduling tool for faculty assignments. Th
    npm install
    ```
 
-2. **Start the frontend**:
+2. **Start the application**:
 
    ```powershell
    npm run dev --workspace frontend
    ```
 
-   The Vite dev server proxies `/api` requests to the Worker running on `http://127.0.0.1:8787` (Wrangler's default).
-
-3. **Start the worker locally** (requires Cloudflare login via CLI browser flow):
-
-   ```powershell
-   npm run dev --workspace worker
-   ```
+   The application will open in your browser at `http://localhost:5173`. All data is stored locally in your browser's IndexedDB.
 
 ## Quality Gates
 
@@ -39,77 +35,100 @@ Run the complete pipeline from the repository root:
 ```powershell
 npm run lint
 npm run test --workspace frontend -- --run
-npm run build
+npm run build --workspace frontend
 ```
 
-> ℹ️ `npm run build` performs a Vite production build and a Cloudflare Wrangler dry-run deploy using Wrangler `4.45.0`.
+> ℹ️ `npm run build --workspace frontend` performs a Vite production build, outputting static files to `frontend/dist/`.
 
 ## Directory Highlights
 
 - `frontend/src/components` – UI modules for configuration, schedule visualization, snapshots, and settings
 - `frontend/src/engine` – placeholder implementations for optimization, scoring, conflicts, and suggestions
-- `frontend/src/store` – Zustand stores managing auth, scheduler data, snapshots, and UI state
-- `frontend/src/data` – REST client, IndexedDB helpers, and sync utilities
-- `worker/src/index.ts` – REST API routes for auth, data sync, snapshots, and settings (currently in-memory)
+- `frontend/src/store` – Zustand stores managing scheduler data, snapshots, and UI state
+- `frontend/src/data` – IndexedDB storage service, import/export utilities, and auto-save functionality
+- `frontend/src/hooks` – React hooks for bootstrap, auto-save, and snapshot management
 
 ## Immediate Next Steps
 
 1. **Implement optimizer & conflict logic** – replace placeholders in `frontend/src/engine/*.ts` and surface outputs in the schedule UI.
 2. **Build preference editors** – complete matrix, quick-fill tools, and validation flows for faculty preferences.
-3. **Enhance testing** – expand beyond the existing smoke test to cover hooks, stores, and API clients.
-4. **Offline polish** – finalize IndexedDB sync and service worker caching for fully offline usage.
+3. **Enhance testing** – expand beyond the existing smoke test to cover hooks, stores, and storage utilities.
+4. **PWA enhancements** – add service worker caching and manifest for installable app experience.
 
-## Persistence setup
+## Local Storage and Data Management
 
-The Worker now persists unified state and snapshots via Cloudflare D1 when a `DB` binding is present. To enable it:
+The application stores all data locally in your browser using IndexedDB:
 
-1. Create a database (one time):
+- **Auto-save**: Changes are automatically saved to IndexedDB within 500ms of any modification
+- **Snapshots**: Save named versions of your schedule at any point in time
+- **Import/Export**: Backup your data by exporting to JSON files, or share configurations across devices by importing
+- **Offline-first**: The application works completely offline with no network connectivity required
 
-   ```powershell
-   npx wrangler d1 create alokate-db
-   ```
+### Data Backup
 
-2. Copy the resulting `database_id` into `worker/wrangler.toml`:
+To backup your data:
 
-   ```toml
-   [[d1_databases]]
-   binding = "DB"
-   database_name = "alokate-db"
-   database_id = "<your-database-id>"
-   ```
+1. Open the Settings panel
+2. Click "Export Data" to download a JSON file containing all your configuration, preferences, schedules, and snapshots
+3. Store this file safely as a backup
 
-3. Apply migrations locally or remotely:
+To restore or import data:
 
-   ```powershell
-   npm run migrate:local --workspace worker
-   # or
-   npm run migrate --workspace worker
-   ```
+1. Open the Settings panel
+2. Click "Import Data" and select a previously exported JSON file
+3. Confirm the import (this will replace your current data)
 
-Without a D1 binding, the Worker falls back to in-memory storage (helpful for local testing, but not durable).
+### Browser Compatibility
 
-## Authentication & sync flow
+The application requires a modern browser with IndexedDB support:
 
-- The login form now calls `POST /auth/login`; successful responses persist a session token in the client store.
-- After login, the layout bootstraps scheduler data via `GET /data`, hydrating the Zustand stores and populating IndexedDB for offline fallback.
-- Snapshot saves capture the current config, preferences, schedule, and settings, attempting to sync with the Worker while always writing to IndexedDB.
-- When the Worker is unreachable (offline mode), login will surface an error and snapshots are stored locally until connectivity returns.
+- ✅ Chrome/Edge 24+
+- ✅ Firefox 16+
+- ✅ Safari 10+
+- ⚠️ Private/Incognito mode may have storage limitations
 ## Useful Commands
 
 | Purpose            | Command                                                     |
 | ------------------ | ----------------------------------------------------------- |
-| Frontend dev       | `npm run dev --workspace frontend`                          |
-| Worker dev         | `npm run dev --workspace worker`                            |
+| Start dev server   | `npm run dev --workspace frontend`                          |
 | Run lint           | `npm run lint`                                              |
 | Run tests          | `npm run test --workspace frontend -- --run`                |
-| Build & dry-run    | `npm run build`                                             |
+| Build for prod     | `npm run build --workspace frontend`                        |
 | Format check       | `npm run format --workspace frontend`                       |
+
+## Deployment
+
+The application is a static single-page application (SPA) that can be deployed to any static hosting service:
+
+### Cloudflare Pages
+
+1. Build the application:
+   ```powershell
+   npm run build --workspace frontend
+   ```
+
+2. Deploy the `frontend/dist/` directory to Cloudflare Pages via the dashboard or CLI
+
+### Netlify
+
+1. Build command: `npm run build --workspace frontend`
+2. Publish directory: `frontend/dist`
+
+### GitHub Pages
+
+1. Build the application locally
+2. Push the `frontend/dist/` directory to your `gh-pages` branch
+
+### Other Static Hosts
+
+Any web server that can serve static files will work. Simply upload the contents of `frontend/dist/` after building.
 
 ## Troubleshooting
 
 - **TypeScript parser warning**: `@typescript-eslint` currently warns about TS `5.6.x`. Downgrade TypeScript or wait for parser support if the warning is disruptive.
-- **Wrangler login**: dry-run deploy requires a Cloudflare login; the CLI will open the browser automatically if you are not authenticated.
+- **Data not persisting**: Ensure your browser supports IndexedDB and isn't in private/incognito mode with strict storage limitations.
+- **Storage quota exceeded**: Delete old snapshots or export your data and start fresh.
 
 ---
 
-With the scaffolding in place and checks green, the focus shifts to implementing the scheduling engine, persistence, and rich UI interactions described in `plan.txt`. Contributions and experiments are welcome!
+With the standalone architecture in place and checks green, the focus shifts to implementing the scheduling engine and rich UI interactions described in `plan.txt`. Contributions and experiments are welcome!

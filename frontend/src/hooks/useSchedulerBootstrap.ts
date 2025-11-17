@@ -1,25 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadOfflineState } from '../data/indexedDb';
-import { syncFromServer } from '../data/syncService';
+import { loadState } from '../data/storage';
+import { defaultState } from '../data/schema';
 import { useSchedulerStore } from '../store/schedulerStore';
 import { useSnapshotStore } from '../store/snapshotStore';
 import { useUIStore } from '../store/uiStore';
-import { useAuth } from './useAuth';
 
 export const useSchedulerBootstrap = () => {
-  const { token, logout } = useAuth();
   const hydrateScheduler = useSchedulerStore((state) => state.hydrate);
   const hydrateSnapshots = useSnapshotStore((state) => state.hydrate);
   const beginOperation = useUIStore((state) => state.beginOperation);
   const endOperation = useUIStore((state) => state.endOperation);
   const [error, setError] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(false);
-  const initializedToken = useRef<string | null>(null);
+  const initialized = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!token || token === initializedToken.current) {
+    if (initialized.current) {
       return () => {
         cancelled = true;
       };
@@ -31,37 +29,31 @@ export const useSchedulerBootstrap = () => {
       beginOperation();
 
       try {
-        const state = await syncFromServer(token);
+        // Load state from IndexedDB
+        const state = await loadState();
         if (cancelled) {
           return;
         }
-        hydrateScheduler(state);
-        hydrateSnapshots(state.snapshots);
-        initializedToken.current = token;
-      } catch (networkError) {
-        if (cancelled) {
-          return;
-        }
-        try {
-          const offlineState = await loadOfflineState();
-          if (offlineState) {
-            hydrateScheduler(offlineState);
-            hydrateSnapshots(offlineState.snapshots ?? []);
-            initializedToken.current = token;
-            return;
-          }
-        } catch (storageError) {
-          console.error('Failed to read offline state', storageError);
-        }
-
-        const message =
-          networkError instanceof Error ? networkError.message : 'Unable to load scheduler data';
-
-        if (message.toLowerCase().includes('session expired')) {
-          logout();
+        
+        // If state exists, hydrate stores with it
+        // Otherwise, initialize with empty default state
+        if (state) {
+          hydrateScheduler(state);
+          hydrateSnapshots(state.snapshots ?? []);
         } else {
-          setError(message);
+          hydrateScheduler(defaultState);
+          hydrateSnapshots([]);
         }
+        
+        initialized.current = true;
+      } catch (storageError) {
+        if (cancelled) {
+          return;
+        }
+        console.error('Failed to load state from IndexedDB', storageError);
+        const message =
+          storageError instanceof Error ? storageError.message : 'Unable to load scheduler data from local storage';
+        setError(message);
       } finally {
         endOperation();
         if (!cancelled) {
@@ -77,7 +69,7 @@ export const useSchedulerBootstrap = () => {
     return () => {
       cancelled = true;
     };
-  }, [beginOperation, endOperation, hydrateScheduler, hydrateSnapshots, logout, token]);
+  }, [beginOperation, endOperation, hydrateScheduler, hydrateSnapshots]);
 
   return {
     initializing,

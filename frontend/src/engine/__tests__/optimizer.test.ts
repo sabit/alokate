@@ -532,7 +532,7 @@ describe('Optimizer - Integration Tests', () => {
     });
 
     // Verify no faculty has duplicate timeslots
-    facultyTimeslots.forEach((timeslots, facultyId) => {
+    facultyTimeslots.forEach((timeslots) => {
       const uniqueTimeslots = new Set(timeslots);
       expect(timeslots.length).toBe(uniqueTimeslots.size);
     });

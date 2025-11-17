@@ -1,4 +1,4 @@
-import { ConnectionBadge } from './ConnectionBadge';
+import { SaveIndicator } from './SaveIndicator';
 import { ThemeToggle } from './ThemeToggle';
 
 export const Header = () => (
@@ -8,7 +8,7 @@ export const Header = () => (
       <p className="text-sm text-slate-400">Optimise assignments, manage preferences, and compare versions.</p>
     </div>
     <div className="flex items-center gap-3">
-      <ConnectionBadge />
+      <SaveIndicator />
       <ThemeToggle />
     </div>
   </header>

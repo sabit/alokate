@@ -3,12 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "frontend",
-    "worker"
+    "frontend"
   ],
   "scripts": {
-    "build": "npm run build --workspace frontend && npm run build --workspace worker",
-    "lint": "npm run lint --workspace frontend && npm run lint --workspace worker",
+    "build": "npm run build --workspace frontend",
+    "lint": "npm run lint --workspace frontend",
     "test": "npm run test --workspace frontend",
     "format": "npm run format --workspace frontend"
   },

@@ -1,6 +1,0 @@
-name = "alokate-worker"
-main = "src/index.ts"
-compatibility_date = "2024-10-26"
-
-[vars]
-ALOKATE_PIN = "1234"

@@ -54,7 +54,7 @@ export function parseCSV<T>(
 
     try {
       const values = parseCSVLine(line);
-      const row: any = {};
+      const row: Record<string, string> = {};
 
       // Map values to properties based on column mapping
       for (let j = 0; j < values.length && j < columnMapping.length; j++) {
@@ -170,7 +170,7 @@ export function parseRoomsCSV(csvText: string): ParsedRoomRow[] {
     'Room': 'room',
   };
 
-  const rawRows = parseCSV<any>(csvText, headerMap);
+  const rawRows = parseCSV<Record<string, string>>(csvText, headerMap);
   const rows: ParsedRoomRow[] = [];
 
   // Validate and convert required fields

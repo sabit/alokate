@@ -1,10 +1,8 @@
 import { useCallback } from 'react';
-import { saveOfflineState } from '../data/indexedDb';
-import { syncToServer } from '../data/syncService';
+import { saveState } from '../data/storage';
 import { useSchedulerStore } from '../store/schedulerStore';
 import { useUIStore } from '../store/uiStore';
 import type { UnifiedState } from '../types';
-import { useAuth } from './useAuth';
 
 const buildUnifiedState = (): UnifiedState => {
   const { config, preferences, schedule, snapshots, settings } = useSchedulerStore.getState();
@@ -14,7 +12,6 @@ const buildUnifiedState = (): UnifiedState => {
 };
 
 export const useSchedulerPersistence = () => {
-  const { token } = useAuth();
   const beginOperation = useUIStore((state) => state.beginOperation);
   const endOperation = useUIStore((state) => state.endOperation);
 
@@ -22,20 +19,9 @@ export const useSchedulerPersistence = () => {
     beginOperation();
     try {
       const state = buildUnifiedState();
-
-      if (token) {
-        try {
-          await syncToServer(token, state);
-          return true;
-        } catch (error) {
-          console.error('Failed to sync scheduler state to server, storing offline instead.', error);
-        }
-      }
-
-      await saveOfflineState(state);
-      return false;
+      await saveState(state);
     } finally {
       endOperation();
     }
-  }, [beginOperation, endOperation, token]);
+  }, [beginOperation, endOperation]);
 };

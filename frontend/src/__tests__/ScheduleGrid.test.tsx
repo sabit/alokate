@@ -166,9 +166,10 @@ describe('ScheduleGrid interactions', () => {
       </>,
     );
 
-    expect(screen.getByText(/Critical conflict/)).toBeInTheDocument();
+    // Check that the conflicted cell shows conflicts in its aria-label
+    const conflictedCell = screen.getByRole('button', { name: /Ada Lovelace at Mon 09:00.*2 conflicts \(critical\)/i });
+    expect(conflictedCell).toBeInTheDocument();
 
-    const conflictedCell = screen.getByRole('button', { name: /Ada Lovelace at Mon 09:00/i });
     await user.click(conflictedCell);
 
     expect(screen.getByText(/Faculty double-booked/i)).toBeInTheDocument();

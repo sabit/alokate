@@ -29,22 +29,10 @@ const conflictBorderClass: Record<ConflictSeverity, string> = {
   critical: 'border-rose-500/70',
 };
 
-const conflictTextClass: Record<ConflictSeverity, string> = {
-  info: 'text-sky-200',
-  warning: 'text-amber-200',
-  critical: 'text-rose-200',
-};
-
 const conflictPillClass: Record<ConflictSeverity, string> = {
   info: 'border border-sky-400/40 bg-sky-500/20 text-sky-100',
   warning: 'border border-amber-400/40 bg-amber-500/20 text-amber-100',
   critical: 'border border-rose-400/50 bg-rose-500/20 text-rose-100',
-};
-
-const conflictDisplayLabel: Record<ConflictSeverity, string> = {
-  info: 'Notice',
-  warning: 'Conflict',
-  critical: 'Critical conflict',
 };
 
 const conflictPillLabel: Record<ConflictSeverity, string> = {

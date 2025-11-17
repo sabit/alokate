@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { AuthGate } from '../routes/AuthGate';
+import { Layout } from '../components/layout/Layout';
 import { ConfigPage } from '../routes/ConfigPage';
 import { PreferencesPage } from '../routes/PreferencesPage';
 import { SchedulePage } from '../routes/SchedulePage';
@@ -10,15 +10,51 @@ export const createRouter = () =>
   createBrowserRouter([
     {
       path: '/',
-      element: <AuthGate />,
-      children: [
-        { index: true, element: <Navigate to="schedule" replace /> },
-        { path: 'config', element: <ConfigPage /> },
-        { path: 'preferences', element: <PreferencesPage /> },
-        { path: 'schedule', element: <SchedulePage /> },
-        { path: 'snapshots', element: <SnapshotsPage /> },
-        { path: 'settings', element: <SettingsPage /> },
-      ],
+      element: (
+        <Layout>
+          <Navigate to="schedule" replace />
+        </Layout>
+      ),
+    },
+    {
+      path: '/config',
+      element: (
+        <Layout>
+          <ConfigPage />
+        </Layout>
+      ),
+    },
+    {
+      path: '/preferences',
+      element: (
+        <Layout>
+          <PreferencesPage />
+        </Layout>
+      ),
+    },
+    {
+      path: '/schedule',
+      element: (
+        <Layout>
+          <SchedulePage />
+        </Layout>
+      ),
+    },
+    {
+      path: '/snapshots',
+      element: (
+        <Layout>
+          <SnapshotsPage />
+        </Layout>
+      ),
+    },
+    {
+      path: '/settings',
+      element: (
+        <Layout>
+          <SettingsPage />
+        </Layout>
+      ),
     },
     { path: '*', element: <Navigate to="/" replace /> },
   ]);

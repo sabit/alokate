@@ -59,7 +59,8 @@ const validateSortConfig = (config: unknown): SortConfig => {
     return DEFAULT_SORT;
   }
 
-  const { field, direction } = config as any;
+  const configObj = config as Record<string, unknown>;
+  const { field, direction } = configObj;
 
   if (!isValidSortField(field) || !isValidSortDirection(direction)) {
     console.warn('[scheduleUiStore] Invalid sort field or direction detected, resetting to default');
@@ -150,17 +151,19 @@ export const useScheduleUiStore = create<SchedulerUIState>()(
         },
       }),
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as any;
+        const persisted = persistedState as Record<string, unknown>;
         
         // Validate sort config
         const sortConfig = validateSortConfig(persisted?.sortConfig);
+        
+        const dayFilter = persisted?.dayFilter as { selectedDays?: string[]; availableDays?: string[] } | undefined;
         
         return {
           ...currentState,
           sortConfig,
           dayFilter: {
-            selectedDays: new Set(persisted?.dayFilter?.selectedDays || []),
-            availableDays: persisted?.dayFilter?.availableDays || [],
+            selectedDays: new Set(dayFilter?.selectedDays || []),
+            availableDays: dayFilter?.availableDays || [],
           },
         };
       },

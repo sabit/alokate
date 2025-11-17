@@ -28,12 +28,8 @@ export const ConfigImporter = () => {
       if (isUnifiedState(parsed)) {
         hydrate(parsed);
         hydrateSnapshots(parsed.snapshots ?? []);
-        const synced = await persistSchedulerState();
-        showSuccessToast(
-          synced
-            ? 'Full scheduler dataset imported and synced to server.'
-            : 'Full scheduler dataset imported (saved locally).',
-        );
+        await persistSchedulerState();
+        showSuccessToast('Full scheduler dataset imported.');
         return;
       }
 
@@ -50,12 +46,8 @@ export const ConfigImporter = () => {
 
         updateConfig(parsed);
         resetSchedule([]);
-        const synced = await persistSchedulerState();
-        showSuccessToast(
-          synced
-            ? 'Configuration imported and synced to server.'
-            : 'Configuration imported (saved locally).',
-        );
+        await persistSchedulerState();
+        showSuccessToast('Configuration imported.');
         return;
       }
 
@@ -112,12 +104,8 @@ export const ConfigImporter = () => {
       resetSchedule([]);
 
       // Persist state
-      const synced = await persistSchedulerState();
-      showSuccessToast(
-        synced
-          ? 'CSV configuration imported and synced to server.'
-          : 'CSV configuration imported (saved locally).',
-      );
+      await persistSchedulerState();
+      showSuccessToast('CSV configuration imported.');
     } catch (error) {
       console.error('Failed to import CSV configuration', error);
       const message = error instanceof Error ? error.message : 'Unable to import CSV configuration';

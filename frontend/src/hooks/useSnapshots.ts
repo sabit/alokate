@@ -1,14 +1,12 @@
 import { useCallback } from 'react';
-import { syncSnapshot } from '../data/syncService';
+import { saveSnapshot, deleteSnapshot as deleteSnapshotFromStorage } from '../data/storage';
 import { useSchedulerStore } from '../store/schedulerStore';
 import { useSnapshotStore } from '../store/snapshotStore';
 import { useUIStore } from '../store/uiStore';
 import type { Snapshot } from '../types';
-import { useAuth } from './useAuth';
 
 export const useSnapshots = () => {
-  const { snapshots, addSnapshot, hydrate } = useSnapshotStore();
-  const { token } = useAuth();
+  const { snapshots, addSnapshot, removeSnapshot, hydrate } = useSnapshotStore();
   const beginOperation = useUIStore((state) => state.beginOperation);
   const endOperation = useUIStore((state) => state.endOperation);
 
@@ -28,22 +26,36 @@ export const useSnapshots = () => {
 
       addSnapshot(snapshot);
       beginOperation();
-      let synced = false;
 
       try {
-        synced = await syncSnapshot(token ?? null, snapshot);
+        await saveSnapshot(snapshot);
       } finally {
         endOperation();
       }
 
-      return { snapshot, synced };
+      return { snapshot };
     },
-    [addSnapshot, beginOperation, endOperation, token],
+    [addSnapshot, beginOperation, endOperation],
+  );
+
+  const deleteSnapshot = useCallback(
+    async (snapshotId: string) => {
+      beginOperation();
+
+      try {
+        await deleteSnapshotFromStorage(snapshotId);
+        removeSnapshot(snapshotId);
+      } finally {
+        endOperation();
+      }
+    },
+    [removeSnapshot, beginOperation, endOperation],
   );
 
   return {
     snapshots,
     createSnapshot,
+    deleteSnapshot,
     hydrate,
   };
 };

@@ -5,6 +5,7 @@ import type { Snapshot } from '../types';
 export interface SnapshotState {
   snapshots: Snapshot[];
   addSnapshot: (snapshot: Snapshot) => void;
+  removeSnapshot: (snapshotId: string) => void;
   hydrate: (snapshots: Snapshot[]) => void;
 }
 
@@ -15,6 +16,10 @@ const initializer: StateCreator<SnapshotState> = (set) => ({
       snapshots: [snapshot, ...state.snapshots].sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
       ),
+    })),
+  removeSnapshot: (snapshotId) =>
+    set((state) => ({
+      snapshots: state.snapshots.filter((s) => s.id !== snapshotId),
     })),
   hydrate: (snapshots) =>
     set({

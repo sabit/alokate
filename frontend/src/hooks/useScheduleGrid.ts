@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { analyzeConflicts, type Conflict, type ConflictSeverity } from '../engine/conflictChecker';
 import { useSchedulerStore } from '../store/schedulerStore';
-import type { SortConfig } from '../store/scheduleUiStore';
 import type {
     Building,
     PreferenceLevel,

@@ -9,10 +9,7 @@ export const SaveSnapshotButton = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { synced } = await createSnapshot({ snapshotName: 'Quick Save' });
-      if (!synced) {
-        console.warn('Snapshot stored locally; will sync when online.');
-      }
+      await createSnapshot({ snapshotName: 'Quick Save' });
     } finally {
       setIsSaving(false);
     }

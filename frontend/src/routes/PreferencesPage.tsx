@@ -55,7 +55,7 @@ export const PreferencesPage = () => {
               Mobility sliders control how forgiving each faculty member is for building changes.
             </li>
             <li className="list-disc">
-              Use "Reset to neutral" to quickly return the current view to zeroed preferences.
+              Use &ldquo;Reset to neutral&rdquo; to quickly return the current view to zeroed preferences.
             </li>
           </ul>
         </div>
