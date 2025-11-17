@@ -61,7 +61,7 @@ describe('CSV Transformer', () => {
         id: 'faculty-am',
         name: 'Dr. Kh. Abdul Maleque',
         initial: 'AM',
-        maxSections: 4,
+        maxSections: 5,
         maxOverload: 1,
         canOverload: false,
       });
@@ -69,7 +69,7 @@ describe('CSV Transformer', () => {
         id: 'faculty-ju',
         name: 'Dr. Md Jashim Uddin',
         initial: 'JU',
-        maxSections: 4,
+        maxSections: 5,
         maxOverload: 1,
         canOverload: false,
       });
@@ -98,6 +98,8 @@ describe('CSV Transformer', () => {
           capacity: 40,
           registration: 40,
           section: 'M3 [A]',
+          courseShortcode: 'M3',
+          sectionIdentifier: 'A',
           slotDay: 'Sunday',
           slotTime: '2:40 PM',
           room: 'DS0605',
@@ -110,7 +112,7 @@ describe('CSV Transformer', () => {
       expect(result.subjects[0]).toEqual({
         id: 'subject-mat2101',
         name: 'MAT2101',
-        code: 'MAT2101',
+        code: 'M3',
       });
 
       expect(result.timeslots).toHaveLength(1);
@@ -143,6 +145,8 @@ describe('CSV Transformer', () => {
         timeslotId: 'slot-sun-1440',
         roomId: 'room-ds0605',
         capacity: 40,
+        courseShortcode: 'M3',
+        sectionIdentifier: 'A',
       });
     });
 
@@ -154,6 +158,8 @@ describe('CSV Transformer', () => {
           capacity: 40,
           registration: 40,
           section: 'M3 [A]',
+          courseShortcode: 'M3',
+          sectionIdentifier: 'A',
           slotDay: 'Sunday',
           slotTime: '2:40 PM',
           room: 'DS0605',
@@ -164,6 +170,8 @@ describe('CSV Transformer', () => {
           capacity: 40,
           registration: 40,
           section: 'M3 [B]',
+          courseShortcode: 'M3',
+          sectionIdentifier: 'B',
           slotDay: 'Sunday',
           slotTime: '2:40 PM',
           room: 'DS0606',
@@ -177,6 +185,39 @@ describe('CSV Transformer', () => {
       expect(result.buildings).toHaveLength(1);
       expect(result.rooms).toHaveLength(2);
       expect(result.sections).toHaveLength(2);
+    });
+
+    it('should throw error when course shortcode maps to multiple course codes', () => {
+      const rows: ParsedRoomRow[] = [
+        {
+          slNo: '01548',
+          course: 'MAT2101',
+          capacity: 40,
+          registration: 40,
+          section: 'M3 [A]',
+          courseShortcode: 'M3',
+          sectionIdentifier: 'A',
+          slotDay: 'Sunday',
+          slotTime: '2:40 PM',
+          room: 'DS0605',
+        },
+        {
+          slNo: '01549',
+          course: 'MAT2102',
+          capacity: 40,
+          registration: 40,
+          section: 'M3 [B]',
+          courseShortcode: 'M3',
+          sectionIdentifier: 'B',
+          slotDay: 'Sunday',
+          slotTime: '2:40 PM',
+          room: 'DS0606',
+        },
+      ];
+
+      expect(() => transformRoomsData(rows)).toThrow(
+        'Course shortcode "M3" maps to multiple course codes: "MAT2101" and "MAT2102"'
+      );
     });
   });
 
@@ -193,6 +234,8 @@ describe('CSV Transformer', () => {
           capacity: 40,
           registration: 40,
           section: 'M3 [A]',
+          courseShortcode: 'M3',
+          sectionIdentifier: 'A',
           slotDay: 'Sunday',
           slotTime: '2:40 PM',
           room: 'DS0605',

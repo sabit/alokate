@@ -14,6 +14,7 @@ import type {
 export interface GridFaculty {
   id: string;
   name: string;
+  initial: string;
   maxSections: number;
   maxOverload: number;
   canOverload: boolean;
@@ -112,6 +113,7 @@ export const useScheduleGrid = (options?: UseScheduleGridOptions): ScheduleGridD
     const faculties: GridFaculty[] = config.faculty.map((faculty) => ({
       id: faculty.id,
       name: faculty.name,
+      initial: faculty.initial,
       maxSections: faculty.maxSections,
       maxOverload: faculty.maxOverload,
       canOverload: faculty.canOverload,
@@ -189,7 +191,7 @@ export const useScheduleGrid = (options?: UseScheduleGridOptions): ScheduleGridD
       return {
         sectionId: section.id,
         subjectId: subject.id,
-        subjectCode: subject.code,
+        subjectCode: section.courseShortcode,
         subjectName: subject.name,
         roomId: room?.id ?? section.roomId,
         roomLabel: room?.label,
@@ -272,7 +274,7 @@ export const useScheduleGrid = (options?: UseScheduleGridOptions): ScheduleGridD
         return {
           sectionId: section.id,
           subjectName: subject?.name ?? 'Unknown subject',
-          subjectCode: subject?.code,
+          subjectCode: section.courseShortcode,
           timeslotLabel: timeslot?.label,
           roomLabel: room?.label,
           buildingLabel: building?.label,

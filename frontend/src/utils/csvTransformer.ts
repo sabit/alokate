@@ -122,7 +122,7 @@ export function transformFacultyData(rows: ParsedFacultyRow[]): Faculty[] {
       id,
       name,
       initial,
-      maxSections: 4,
+      maxSections: 5,
       maxOverload: 1,
       canOverload: false,
     });
@@ -164,13 +164,26 @@ export function transformRoomsData(rows: ParsedRoomRow[]): {
   const buildingsMap = new Map<string, Building>();
   const roomsMap = new Map<string, Room>();
   const sections: Section[] = [];
+  
+  // Track course shortcode to course code mapping for validation
+  const shortcodeToCodeMap = new Map<string, string>();
 
   for (const row of rows) {
     const courseCode = row.course.trim();
+    const courseShortcode = row.courseShortcode.trim();
     const sectionName = row.section.trim();
     const day = row.slotDay.trim();
     const time12 = row.slotTime.trim();
     const roomCode = row.room.trim();
+    
+    // Validate course shortcode uniqueness
+    const existingCourseCode = shortcodeToCodeMap.get(courseShortcode);
+    if (existingCourseCode && existingCourseCode !== courseCode) {
+      throw new Error(
+        `Course shortcode "${courseShortcode}" maps to multiple course codes: "${existingCourseCode}" and "${courseCode}". Each shortcode must correspond to exactly one course.`
+      );
+    }
+    shortcodeToCodeMap.set(courseShortcode, courseCode);
 
     // Extract and deduplicate subjects
     const subjectId = generateSubjectId(courseCode);
@@ -178,7 +191,7 @@ export function transformRoomsData(rows: ParsedRoomRow[]): {
       subjectsMap.set(subjectId, {
         id: subjectId,
         name: courseCode,
-        code: courseCode,
+        code: courseShortcode,
       });
     }
 
@@ -236,6 +249,8 @@ export function transformRoomsData(rows: ParsedRoomRow[]): {
       timeslotId,
       roomId,
       capacity: row.capacity,
+      courseShortcode: row.courseShortcode,
+      sectionIdentifier: row.sectionIdentifier,
     });
   }
 

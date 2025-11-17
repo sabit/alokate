@@ -362,7 +362,7 @@ export const ScheduleGrid = () => {
                     >
                       <div className="flex justify-center">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500/20 text-xs font-bold text-brand-200">
-                          {getInitials(row.faculty.name)}
+                          {row.faculty.initial}
                         </div>
                         <span className="sr-only">{row.faculty.name}</span>
                       </div>

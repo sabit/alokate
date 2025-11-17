@@ -19,6 +19,8 @@ export interface Section {
   timeslotId: string;
   roomId: string;
   capacity: number;
+  courseShortcode: string;
+  sectionIdentifier: string;
 }
 
 export interface Timeslot {
@@ -122,6 +124,8 @@ export interface ParsedRoomRow {
   capacity: number;
   registration: number;
   section: string;
+  courseShortcode: string;
+  sectionIdentifier: string;
   slotDay: string;
   slotTime: string;
   room: string;

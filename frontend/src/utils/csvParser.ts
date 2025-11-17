@@ -115,6 +115,49 @@ function parseCSVLine(line: string): string[] {
 }
 
 /**
+ * Parse section field to extract course shortcode and section identifier
+ * @param sectionValue - Section value in format "SHORTCODE [IDENTIFIER]" (e.g., "M3 [A]" or "M2[B]")
+ * @returns Object containing courseShortcode and sectionIdentifier
+ * @throws CSVParseError if format is invalid or values are empty
+ */
+export function parseSectionField(sectionValue: string): {
+  courseShortcode: string;
+  sectionIdentifier: string;
+} {
+  const trimmedValue = sectionValue.trim();
+  
+  // Regex pattern: capture shortcode (non-greedy), optional whitespace, then identifier in brackets
+  const pattern = /^(.+?)\s*\[(.+)\]$/;
+  const match = trimmedValue.match(pattern);
+  
+  if (!match) {
+    throw new CSVParseError(
+      `Invalid section format '${sectionValue}'. Expected format: 'SHORTCODE [IDENTIFIER]'`
+    );
+  }
+  
+  const courseShortcode = match[1].trim();
+  const sectionIdentifier = match[2].trim();
+  
+  if (courseShortcode === '') {
+    throw new CSVParseError(
+      `Empty course shortcode in section '${sectionValue}'`
+    );
+  }
+  
+  if (sectionIdentifier === '') {
+    throw new CSVParseError(
+      `Empty section identifier in section '${sectionValue}'`
+    );
+  }
+  
+  return {
+    courseShortcode,
+    sectionIdentifier,
+  };
+}
+
+/**
  * Parse faculty CSV file
  * @param csvText - Raw CSV text content
  * @returns Array of parsed faculty rows
@@ -209,12 +252,34 @@ export function parseRoomsCSV(csvText: string): ParsedRoomRow[] {
       );
     }
 
+    // Parse section field to extract shortcode and identifier
+    let courseShortcode: string;
+    let sectionIdentifier: string;
+    
+    try {
+      const parsed = parseSectionField(row.section);
+      courseShortcode = parsed.courseShortcode;
+      sectionIdentifier = parsed.sectionIdentifier;
+    } catch (error) {
+      if (error instanceof CSVParseError) {
+        // Add row number and field context to the error
+        throw new CSVParseError(
+          `${error.message} at row ${rowNumber}`,
+          rowNumber,
+          'Section'
+        );
+      }
+      throw error;
+    }
+
     rows.push({
       slNo: row.slNo || '',
       course: row.course.trim(),
       capacity,
       registration,
       section: row.section.trim(),
+      courseShortcode,
+      sectionIdentifier,
       slotDay: row.slotDay.trim(),
       slotTime: row.slotTime.trim(),
       room: row.room.trim(),

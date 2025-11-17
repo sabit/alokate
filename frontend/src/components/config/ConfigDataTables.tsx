@@ -38,10 +38,39 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
     [config.timeslots],
   );
 
+  // Computed states for select all toggle
+  const allCanOverload = useMemo(
+    () => config.faculty.length > 0 && config.faculty.every((f) => f.canOverload),
+    [config.faculty],
+  );
+
+  const noneCanOverload = useMemo(
+    () => config.faculty.length > 0 && config.faculty.every((f) => !f.canOverload),
+    [config.faculty],
+  );
+
+  const isIndeterminate = useMemo(
+    () => !allCanOverload && !noneCanOverload && config.faculty.length > 0,
+    [allCanOverload, noneCanOverload, config.faculty.length],
+  );
+
   const updateFaculty = (facultyId: string, updates: Partial<Faculty>) => {
     const updatedFaculty = config.faculty.map((f) =>
       f.id === facultyId ? { ...f, ...updates } : f,
     );
+    updateConfig({ ...config, faculty: updatedFaculty });
+  };
+
+  const handleToggleAllCanOverload = () => {
+    // If all are checked or indeterminate, uncheck all
+    // If all are unchecked, check all
+    const newValue = noneCanOverload;
+
+    const updatedFaculty = config.faculty.map((f) => ({
+      ...f,
+      canOverload: newValue,
+    }));
+
     updateConfig({ ...config, faculty: updatedFaculty });
   };
 
@@ -79,7 +108,22 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                       Max Overload
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                      Can Overload
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={allCanOverload}
+                          ref={(el) => {
+                            if (el) {
+                              el.indeterminate = isIndeterminate;
+                            }
+                          }}
+                          onChange={handleToggleAllCanOverload}
+                          disabled={config.faculty.length === 0}
+                          className="h-4 w-4 rounded border-white/10 bg-slate-800 text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                          aria-label="Toggle all faculty overload capability"
+                        />
+                        <span>Can Overload</span>
+                      </div>
                     </th>
                   </tr>
                 </thead>
@@ -315,6 +359,12 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                       Subject
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+                      Course Shortcode
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+                      Section ID
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
                       Timeslot
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -334,6 +384,12 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                       <tr key={section.id} className="hover:bg-white/5" data-id={section.id}>
                         <td className="px-4 py-2 text-sm text-slate-300">
                           {subject ? `${subject.code} - ${subject.name}` : section.subjectId}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-slate-300">
+                          {section.courseShortcode}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-slate-300">
+                          {section.sectionIdentifier}
                         </td>
                         <td className="px-4 py-2 text-sm text-slate-300">
                           {timeslot?.label || section.timeslotId}
