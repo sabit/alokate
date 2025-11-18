@@ -122,8 +122,8 @@ const calculateCapacityPenalty = (
     return -1000; // Exceeds overload limit - severe penalty
   }
 
-  // Escalating penalty based on overload degree
-  return -50 * (overloadAmount + 1);
+  // Escalating penalty based on overload degree (starts at -50 for first overload)
+  return -50 * overloadAmount;
 };
 
 const calculateSeniority = (facultyIndex: number, totalFaculty: number): number => {
@@ -219,32 +219,84 @@ const calculateConsecutivePenalty = (
     return 0; // No penalty if consecutive value is 0
   }
 
-  // Get all current assignments for this faculty in chronological order
+  // Create a map of timeslot ID to timeslot data for quick lookup
+  const timeslotById = new Map(timeslots.map((ts) => [ts.id, ts]));
+  
+  // Build a map of timeslot ID to its index within its day (sorted by time)
+  // Group timeslots by day
+  const timeslotsByDay = new Map<string, Array<{ id: string; start: string }>>();
+  timeslots.forEach((ts) => {
+    if (!timeslotsByDay.has(ts.day)) {
+      timeslotsByDay.set(ts.day, []);
+    }
+    timeslotsByDay.get(ts.day)!.push({ id: ts.id, start: ts.start });
+  });
+  
+  // Sort each day's timeslots by start time and assign indices
+  const timeslotDayIndex = new Map<string, number>();
+  timeslotsByDay.forEach((dayTimeslots, day) => {
+    dayTimeslots.sort((a, b) => parseTimeToMinutes(a.start) - parseTimeToMinutes(b.start));
+    dayTimeslots.forEach((ts, index) => {
+      timeslotDayIndex.set(ts.id, index);
+    });
+  });
+
+  // Get all current assignments for this faculty
   const facultyAssignments = currentAssignments
     .filter((entry) => entry.facultyId === facultyId)
     .map((entry) => ({
       timeslotId: entry.timeslotId,
-      timeslotIndex: timeslotIndexMap.get(entry.timeslotId) ?? Number.MAX_SAFE_INTEGER,
+      timeslot: timeslotById.get(entry.timeslotId),
+      dayIndex: timeslotDayIndex.get(entry.timeslotId) ?? -1,
     }))
-    .sort((a, b) => a.timeslotIndex - b.timeslotIndex);
+    .filter((entry) => entry.timeslot !== undefined && entry.dayIndex !== -1);
 
-  // Insert the new assignment in chronological order
-  const newTimeslotIndex = timeslotIndexMap.get(newTimeslotId) ?? Number.MAX_SAFE_INTEGER;
-  const allAssignments = [...facultyAssignments, { timeslotId: newTimeslotId, timeslotIndex: newTimeslotIndex }]
-    .sort((a, b) => a.timeslotIndex - b.timeslotIndex);
+  // Add the new assignment
+  const newTimeslot = timeslotById.get(newTimeslotId);
+  const newDayIndex = timeslotDayIndex.get(newTimeslotId) ?? -1;
+  if (!newTimeslot || newDayIndex === -1) {
+    return 0; // Invalid timeslot ID
+  }
+  
+  const allAssignments = [
+    ...facultyAssignments, 
+    { timeslotId: newTimeslotId, timeslot: newTimeslot, dayIndex: newDayIndex }
+  ];
+
+  // Sort by day and day index
+  const dayOrder: Record<string, number> = {
+    'Monday': 1,
+    'Tuesday': 2,
+    'Wednesday': 3,
+    'Thursday': 4,
+    'Friday': 5,
+    'Saturday': 6,
+    'Sunday': 7,
+  };
+  
+  allAssignments.sort((a, b) => {
+    const dayA = dayOrder[a.timeslot!.day] ?? 999;
+    const dayB = dayOrder[b.timeslot!.day] ?? 999;
+    
+    if (dayA !== dayB) {
+      return dayA - dayB;
+    }
+    
+    // Same day - sort by day index
+    return a.dayIndex - b.dayIndex;
+  });
 
   // Count consecutive pairs
   let consecutiveCount = 0;
   
   for (let i = 1; i < allAssignments.length; i++) {
-    const prevIndex = allAssignments[i - 1].timeslotIndex;
-    const currentIndex = allAssignments[i].timeslotIndex;
+    const prevTimeslot = allAssignments[i - 1].timeslot!;
+    const currentTimeslot = allAssignments[i].timeslot!;
+    const prevDayIndex = allAssignments[i - 1].dayIndex;
+    const currentDayIndex = allAssignments[i].dayIndex;
 
-    // Check if timeslots are consecutive (adjacent indices)
-    if (currentIndex === prevIndex + 1) {
-      const prevTimeslot = timeslots[prevIndex];
-      const currentTimeslot = timeslots[currentIndex];
-      
+    // Check if timeslots are consecutive (same day, adjacent indices)
+    if (prevTimeslot.day === currentTimeslot.day && currentDayIndex === prevDayIndex + 1) {
       // Check if this consecutive pair spans lunch hour
       const isLunchPair = isLunchHourPair(prevTimeslot, currentTimeslot);
       
@@ -463,6 +515,12 @@ export const runOptimizer = (
           consecutive: consecutiveScore,
           capacityPenalty,
           total: totalScore,
+          weighted: {
+            preference: preferenceComponent,
+            mobility: mobilityComponent,
+            seniority: seniorityComponent,
+            consecutive: consecutiveComponent,
+          },
         },
       };
 
@@ -728,6 +786,12 @@ export const runOptimizer = (
         consecutive: selectedCandidate.consecutiveScore,
         capacityPenalty,
         total: totalScore,
+        weighted: {
+          preference: preferenceComponent,
+          mobility: mobilityComponent,
+          seniority: seniorityComponent,
+          consecutive: consecutiveComponent,
+        },
       },
     };
 

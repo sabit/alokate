@@ -29,7 +29,7 @@ const emptyState = (): UnifiedState => ({
   schedule: [],
   snapshots: [],
   settings: {
-    weights: { mobility: 0.8, seniority: 1.2, preference: 1.0, consecutive: 1.0 },
+    weights: { mobility: 1.0, seniority: 1.0, preference: 1.0, consecutive: 1.0 },
     theme: 'dark',
     optimizerSeed: 42,
   },

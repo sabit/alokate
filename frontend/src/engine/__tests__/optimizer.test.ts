@@ -565,3 +565,303 @@ describe('Optimizer - Integration Tests', () => {
     expect(lockedEntry!.locked).toBe(true);
   });
 });
+
+describe('Optimizer - Consecutive Penalty Calculation', () => {
+  it('should detect consecutive timeslots on the same day', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts2', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+      ],
+      timeslots: [
+        { id: 'ts1', label: 'Mon 9-10', day: 'Monday', start: '09:00', end: '10:00' },
+        { id: 'ts2', label: 'Mon 10-11', day: 'Monday', start: '10:00', end: '11:00' }, // Consecutive with ts1
+      ],
+    });
+    const preferences = createTestPreferences({
+      consecutive: { f1: 1 },
+    });
+
+    const result = runOptimizer(config, preferences, [], { seed: 1 });
+
+    // Both sections should be assigned to f1
+    const f1Entries = result.filter((e) => e.facultyId === 'f1');
+    expect(f1Entries.length).toBe(2);
+
+    // The second assignment should have a negative consecutive score
+    const sec2Entry = result.find((e) => e.sectionId === 'sec2');
+    expect(sec2Entry).toBeDefined();
+    expect(sec2Entry!.scoreBreakdown?.consecutive).toBeLessThan(0);
+  });
+
+  it('should not penalize non-consecutive timeslots', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts3', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+      ],
+      timeslots: [
+        { id: 'ts1', label: 'Mon 9-10', day: 'Monday', start: '09:00', end: '10:00' },
+        { id: 'ts2', label: 'Mon 10-11', day: 'Monday', start: '10:00', end: '11:00' },
+        { id: 'ts3', label: 'Mon 11-12', day: 'Monday', start: '11:00', end: '12:00' }, // Not consecutive with ts1
+      ],
+    });
+    const preferences = createTestPreferences({
+      consecutive: { f1: 1 },
+    });
+
+    const result = runOptimizer(config, preferences, [], { seed: 1 });
+
+    // First assignment should have no consecutive penalty (use toBeCloseTo to handle -0 vs 0)
+    const sec1Entry = result.find((e) => e.sectionId === 'sec1');
+    expect(sec1Entry).toBeDefined();
+    expect(sec1Entry!.scoreBreakdown?.consecutive).toBeCloseTo(0);
+  });
+
+  it('should sort timeslots by day and time, not array position', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts3', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+        { id: 'sec3', subjectId: 'subj1', timeslotId: 'ts2', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'C' },
+      ],
+      timeslots: [
+        { id: 'ts3', label: 'Wed 11-12', day: 'Wednesday', start: '11:00', end: '12:00' }, // Array position 0, but chronologically last
+        { id: 'ts1', label: 'Mon 9-10', day: 'Monday', start: '09:00', end: '10:00' },     // Array position 1, but chronologically first
+        { id: 'ts2', label: 'Mon 10-11', day: 'Monday', start: '10:00', end: '11:00' },    // Array position 2, consecutive with ts1
+      ],
+    });
+    const preferences = createTestPreferences({
+      consecutive: { f1: 1 },
+    });
+
+    const result = runOptimizer(config, preferences, [], { seed: 1 });
+
+    // sec3 (ts2) should have consecutive penalty because ts1 and ts2 are consecutive by time
+    const sec3Entry = result.find((e) => e.sectionId === 'sec3');
+    expect(sec3Entry).toBeDefined();
+    expect(sec3Entry!.scoreBreakdown?.consecutive).toBeLessThan(0);
+  });
+
+  it('should not penalize timeslots on different days', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts2', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+      ],
+      timeslots: [
+        { id: 'ts1', label: 'Mon 9-10', day: 'Monday', start: '09:00', end: '10:00' },
+        { id: 'ts2', label: 'Tue 9-10', day: 'Tuesday', start: '09:00', end: '10:00' }, // Different day
+      ],
+    });
+    const preferences = createTestPreferences({
+      consecutive: { f1: 1 },
+    });
+
+    const result = runOptimizer(config, preferences, [], { seed: 1 });
+
+    // No consecutive penalty since they're on different days (use toBeCloseTo to handle -0 vs 0)
+    const sec2Entry = result.find((e) => e.sectionId === 'sec2');
+    expect(sec2Entry).toBeDefined();
+    expect(sec2Entry!.scoreBreakdown?.consecutive).toBeCloseTo(0);
+  });
+
+  it('should apply higher penalty for lunch hour consecutive pairs', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts2', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+      ],
+      timeslots: [
+        { id: 'ts1', label: 'Mon 11-12', day: 'Monday', start: '11:00', end: '12:00' },
+        { id: 'ts2', label: 'Mon 12-13', day: 'Monday', start: '12:00', end: '13:00' }, // Lunch hour consecutive
+      ],
+    });
+    const preferences = createTestPreferences({
+      consecutive: { f1: 1 },
+    });
+
+    const result = runOptimizer(config, preferences, [], { seed: 1 });
+
+    // Lunch hour consecutive should have penalty of -2 (double the normal -1)
+    const sec2Entry = result.find((e) => e.sectionId === 'sec2');
+    expect(sec2Entry).toBeDefined();
+    expect(sec2Entry!.scoreBreakdown?.consecutive).toBe(-2);
+  });
+
+  it('should scale penalty by consecutive value', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts2', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+      ],
+      timeslots: [
+        { id: 'ts1', label: 'Mon 9-10', day: 'Monday', start: '09:00', end: '10:00' },
+        { id: 'ts2', label: 'Mon 10-11', day: 'Monday', start: '10:00', end: '11:00' },
+      ],
+    });
+
+    // Test with consecutive value of 5
+    const preferencesHigh = createTestPreferences({
+      consecutive: { f1: 5 },
+    });
+    const resultHigh = runOptimizer(config, preferencesHigh, [], { seed: 1 });
+
+    const sec2EntryHigh = resultHigh.find((e) => e.sectionId === 'sec2');
+    expect(sec2EntryHigh).toBeDefined();
+    expect(sec2EntryHigh!.scoreBreakdown?.consecutive).toBe(-5);
+
+    // Test with consecutive value of 2
+    const preferencesLow = createTestPreferences({
+      consecutive: { f1: 2 },
+    });
+    const resultLow = runOptimizer(config, preferencesLow, [], { seed: 1 });
+
+    const sec2EntryLow = resultLow.find((e) => e.sectionId === 'sec2');
+    expect(sec2EntryLow).toBeDefined();
+    expect(sec2EntryLow!.scoreBreakdown?.consecutive).toBe(-2);
+  });
+
+  it('should handle multiple consecutive pairs correctly', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts2', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+        { id: 'sec3', subjectId: 'subj1', timeslotId: 'ts3', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'C' },
+      ],
+      timeslots: [
+        { id: 'ts1', label: 'Mon 14-15', day: 'Monday', start: '14:00', end: '15:00' },
+        { id: 'ts2', label: 'Mon 15-16', day: 'Monday', start: '15:00', end: '16:00' }, // Consecutive with ts1
+        { id: 'ts3', label: 'Mon 16-17', day: 'Monday', start: '16:00', end: '17:00' }, // Consecutive with ts2
+      ],
+    });
+    const preferences = createTestPreferences({
+      consecutive: { f1: 1 },
+    });
+
+    const result = runOptimizer(config, preferences, [], { seed: 1 });
+
+    // sec2 should have -1 (one consecutive pair: ts1-ts2)
+    const sec2Entry = result.find((e) => e.sectionId === 'sec2');
+    expect(sec2Entry).toBeDefined();
+    expect(sec2Entry!.scoreBreakdown?.consecutive).toBe(-1);
+
+    // sec3 should have -2 (two consecutive pairs: ts1-ts2 and ts2-ts3)
+    const sec3Entry = result.find((e) => e.sectionId === 'sec3');
+    expect(sec3Entry).toBeDefined();
+    expect(sec3Entry!.scoreBreakdown?.consecutive).toBe(-2);
+  });
+
+  it('should handle zero consecutive value with no penalty', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts2', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+      ],
+      timeslots: [
+        { id: 'ts1', label: 'Mon 9-10', day: 'Monday', start: '09:00', end: '10:00' },
+        { id: 'ts2', label: 'Mon 10-11', day: 'Monday', start: '10:00', end: '11:00' },
+      ],
+    });
+    const preferences = createTestPreferences({
+      consecutive: { f1: 0 }, // Zero consecutive value
+    });
+
+    const result = runOptimizer(config, preferences, [], { seed: 1 });
+
+    // No penalty should be applied
+    const sec2Entry = result.find((e) => e.sectionId === 'sec2');
+    expect(sec2Entry).toBeDefined();
+    expect(sec2Entry!.scoreBreakdown?.consecutive).toBe(0);
+  });
+
+  it('should handle missing consecutive preference gracefully', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts2', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+      ],
+      timeslots: [
+        { id: 'ts1', label: 'Mon 9-10', day: 'Monday', start: '09:00', end: '10:00' },
+        { id: 'ts2', label: 'Mon 10-11', day: 'Monday', start: '10:00', end: '11:00' },
+      ],
+    });
+    const preferences = createTestPreferences({
+      consecutive: {}, // No consecutive preference for f1
+    });
+
+    const result = runOptimizer(config, preferences, [], { seed: 1 });
+
+    // Should default to consecutive value of 1
+    const sec2Entry = result.find((e) => e.sectionId === 'sec2');
+    expect(sec2Entry).toBeDefined();
+    expect(sec2Entry!.scoreBreakdown?.consecutive).toBe(-1);
+  });
+
+  it('should correctly order timeslots across multiple days', () => {
+    const config = createTestConfig({
+      faculty: [
+        { id: 'f1', name: 'Faculty 1', initial: 'F1', maxSections: 5, maxOverload: 0, canOverload: false },
+      ],
+      sections: [
+        { id: 'sec1', subjectId: 'subj1', timeslotId: 'ts1', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'A' },
+        { id: 'sec2', subjectId: 'subj1', timeslotId: 'ts2', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'B' },
+        { id: 'sec3', subjectId: 'subj1', timeslotId: 'ts3', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'C' },
+        { id: 'sec4', subjectId: 'subj1', timeslotId: 'ts4', roomId: 'r1', capacity: 30, courseShortcode: 'CS101', sectionIdentifier: 'D' },
+      ],
+      timeslots: [
+        { id: 'ts1', label: 'Mon 9-10', day: 'Monday', start: '09:00', end: '10:00' },
+        { id: 'ts2', label: 'Mon 10-11', day: 'Monday', start: '10:00', end: '11:00' },
+        { id: 'ts3', label: 'Tue 9-10', day: 'Tuesday', start: '09:00', end: '10:00' },
+        { id: 'ts4', label: 'Tue 10-11', day: 'Tuesday', start: '10:00', end: '11:00' },
+      ],
+    });
+    const preferences = createTestPreferences({
+      consecutive: { f1: 1 },
+    });
+
+    const result = runOptimizer(config, preferences, [], { seed: 1 });
+
+    // sec2 should have -1 (consecutive with sec1 on Monday)
+    const sec2Entry = result.find((e) => e.sectionId === 'sec2');
+    expect(sec2Entry).toBeDefined();
+    expect(sec2Entry!.scoreBreakdown?.consecutive).toBe(-1);
+
+    // sec3 should have 0 (not consecutive - different day)
+    const sec3Entry = result.find((e) => e.sectionId === 'sec3');
+    expect(sec3Entry).toBeDefined();
+    expect(sec3Entry!.scoreBreakdown?.consecutive).toBe(-1); // One consecutive pair on Monday
+
+    // sec4 should have -2 (consecutive on Monday + consecutive on Tuesday)
+    const sec4Entry = result.find((e) => e.sectionId === 'sec4');
+    expect(sec4Entry).toBeDefined();
+    expect(sec4Entry!.scoreBreakdown?.consecutive).toBe(-2);
+  });
+});

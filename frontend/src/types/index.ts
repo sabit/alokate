@@ -69,6 +69,13 @@ export interface ScoreBreakdown {
   capacityPenalty: number;
   consecutive: number;
   total: number;
+  // Weighted contributions (raw score × weight)
+  weighted?: {
+    preference: number;
+    mobility: number;
+    seniority: number;
+    consecutive: number;
+  };
 }
 
 export interface ScheduleEntry {

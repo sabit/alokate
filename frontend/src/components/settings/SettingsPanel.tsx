@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { useSchedulerStore } from '../../store/schedulerStore';
 import { useUIStore } from '../../store/uiStore';
 import { Button } from '../shared/Button';
+import { WeightInput } from './WeightInput';
 import { downloadStateAsJSON, parseStateFromFile } from '../../data/importExport';
 import { saveState } from '../../data/storage';
 import type { UnifiedState } from '../../types';
@@ -10,16 +11,14 @@ export const SettingsPanel = () => {
   const settings = useSchedulerStore((state) => state.settings);
   const updateSettings = useSchedulerStore((state) => state.updateSettings);
   const hydrate = useSchedulerStore((state) => state.hydrate);
-  const getState = useSchedulerStore((state) => ({
-    config: state.config,
-    preferences: state.preferences,
-    schedule: state.schedule,
-    snapshots: state.snapshots,
-    settings: state.settings,
-  }));
+  const config = useSchedulerStore((state) => state.config);
+  const preferences = useSchedulerStore((state) => state.preferences);
+  const schedule = useSchedulerStore((state) => state.schedule);
+  const snapshots = useSchedulerStore((state) => state.snapshots);
   const { toggleTheme, pushToast } = useUIStore();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showImportConfirm, setShowImportConfirm] = useState(false);
@@ -28,7 +27,13 @@ export const SettingsPanel = () => {
   const handleExport = () => {
     try {
       setIsExporting(true);
-      const state = getState;
+      const state = {
+        config,
+        preferences,
+        schedule,
+        snapshots,
+        settings,
+      };
       downloadStateAsJSON(state);
       pushToast({
         message: 'Data exported successfully',
@@ -103,26 +108,131 @@ export const SettingsPanel = () => {
     setPendingImportState(null);
   };
 
+  // Debounced weight change handler
+  const handleWeightChange = useCallback((weightKey: keyof typeof settings.weights, value: number) => {
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set new timer for debounced update
+    debounceTimerRef.current = setTimeout(async () => {
+      const updatedSettings = {
+        ...settings,
+        weights: {
+          ...settings.weights,
+          [weightKey]: value,
+        },
+      };
+      updateSettings(updatedSettings);
+      
+      // Persist the complete unified state
+      try {
+        await saveState({
+          config,
+          preferences,
+          schedule,
+          snapshots,
+          settings: updatedSettings,
+        });
+      } catch (error) {
+        pushToast({
+          message: `Failed to save weight changes: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: 'error',
+        });
+      }
+    }, 300);
+  }, [settings, updateSettings, config, preferences, schedule, snapshots, pushToast]);
+
+  // Reset weights to default values
+  const handleResetWeights = useCallback(async () => {
+    const updatedSettings = {
+      ...settings,
+      weights: {
+        preference: 1.0,
+        mobility: 1.0,
+        seniority: 1.0,
+        consecutive: 1.0,
+      },
+    };
+    updateSettings(updatedSettings);
+    
+    // Persist the complete unified state
+    try {
+      await saveState({
+        config,
+        preferences,
+        schedule,
+        snapshots,
+        settings: updatedSettings,
+      });
+      pushToast({
+        message: 'Weights reset to default values',
+        variant: 'success',
+      });
+    } catch (error) {
+      pushToast({
+        message: `Failed to save reset weights: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: 'error',
+      });
+    }
+  }, [settings, updateSettings, config, preferences, schedule, snapshots, pushToast]);
+
   return (
     <div className="space-y-4 rounded-xl border border-white/5 bg-slate-950/40 p-6">
       <div>
         <h3 className="text-lg font-semibold">Algorithm weights</h3>
-        <p className="text-sm text-slate-400">
-          Current mobility weight: {settings.weights.mobility.toFixed(2)}, preference weight:{' '}
-          {settings.weights.preference.toFixed(2)}, seniority weight: {settings.weights.seniority.toFixed(2)}, consecutive weight: {settings.weights.consecutive.toFixed(2)}
+        <p className="text-sm text-slate-400 mb-4">
+          Configure the weights used by the optimizer to prioritize different factors in schedule generation.
         </p>
-        <Button
-          className="mt-3"
-          variant="secondary"
-          onClick={() =>
-            updateSettings({
-              ...settings,
-              optimizerSeed: Date.now(),
-            })
-          }
-        >
-          Randomise optimizer seed
-        </Button>
+        
+        {/* Weight Input Controls Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <WeightInput
+            label="Preference Weight"
+            value={settings.weights.preference}
+            onChange={(value) => handleWeightChange('preference', value)}
+            helperText="Affects subject, timeslot, and building preferences"
+          />
+          <WeightInput
+            label="Mobility Weight"
+            value={settings.weights.mobility}
+            onChange={(value) => handleWeightChange('mobility', value)}
+            helperText="Affects building transition penalties"
+          />
+          <WeightInput
+            label="Seniority Weight"
+            value={settings.weights.seniority}
+            onChange={(value) => handleWeightChange('seniority', value)}
+            helperText="Affects faculty seniority priority"
+          />
+          <WeightInput
+            label="Consecutive Weight"
+            value={settings.weights.consecutive}
+            onChange={(value) => handleWeightChange('consecutive', value)}
+            helperText="Affects consecutive timeslot penalties"
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            onClick={handleResetWeights}
+          >
+            Reset Weights
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              updateSettings({
+                ...settings,
+                optimizerSeed: Date.now(),
+              })
+            }
+          >
+            Randomise optimizer seed
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-white/5 bg-slate-900/50 p-4">

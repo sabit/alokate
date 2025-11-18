@@ -7,6 +7,7 @@ import { useSchedulerStore } from '../../../store/schedulerStore';
 import { useScheduleUiStore } from '../../../store/scheduleUiStore';
 import type { PreferenceLevel } from '../../../types';
 import { getInitials } from '../../../utils/formatters';
+import { buildScoreTooltip, calculatePreferenceBreakdown } from '../../../utils/scoreFormatters';
 import { ContextMenu } from '../../shared/ContextMenu';
 import { MenuItem } from '../../shared/MenuItem';
 import { TimeslotHeader } from './SortableTimeslotHeader';
@@ -64,6 +65,7 @@ export const ScheduleGrid = () => {
   const schedule = useSchedulerStore((state) => state.schedule);
   const updateSchedule = useSchedulerStore((state) => state.updateSchedule);
   const config = useSchedulerStore((state) => state.config);
+  const preferences = useSchedulerStore((state) => state.preferences);
 
   const activeCell = useScheduleUiStore((state) => state.activeCell);
   const setActiveCell = useScheduleUiStore((state) => state.setActiveCell);
@@ -395,29 +397,87 @@ export const ScheduleGrid = () => {
                       ? 'Assignment Preference' 
                       : 'Timeslot Preference';
                     
-                    // Build detailed tooltip
-                    const tooltipParts = [
-                      `${row.faculty.name} at ${timeslotLabel}`,
-                      `${preferenceLabel}: ${formatPreference(effectivePreference)}`,
-                    ];
+                    // Build detailed tooltip with score breakdown
+                    let tooltipText: string;
+                    let accessibleLabel: string;
                     
                     if (hasAssignments) {
-                      cell.assignments.forEach((assignment) => {
-                        const assignmentDetails = [
-                          assignment.subjectCode || assignment.subjectName,
-                          assignment.roomLabel && `Room: ${assignment.roomLabel}`,
-                          assignment.buildingLabel && `Building: ${assignment.buildingLabel}`,
-                        ].filter(Boolean).join(' • ');
-                        tooltipParts.push(assignmentDetails);
+                      // Build enhanced tooltip with score breakdown for each assignment
+                      const tooltipParts: string[] = [];
+                      
+                      cell.assignments.forEach((assignment, index) => {
+                        // Calculate preference breakdown for this assignment
+                        const preferenceBreakdown = calculatePreferenceBreakdown(
+                          cell.facultyId,
+                          assignment.sectionId,
+                          cell.timeslotId,
+                          assignment.buildingId,
+                          preferences,
+                          config,
+                        );
+                        
+                        // Build tooltip for this assignment
+                        const assignmentTooltip = buildScoreTooltip(
+                          assignment,
+                          preferenceBreakdown,
+                          row.faculty.name,
+                          timeslotLabel,
+                        );
+                        
+                        tooltipParts.push(assignmentTooltip);
+                        
+                        // Add separator between multiple assignments
+                        if (index < cell.assignments.length - 1) {
+                          tooltipParts.push('\n---\n');
+                        }
                       });
+                      
+                      if (conflictDescription) {
+                        tooltipParts.push('\n' + conflictDescription.substring(2)); // Remove leading ", "
+                      }
+                      
+                      tooltipText = tooltipParts.join('\n');
+                      
+                      // Build accessible label with score breakdown
+                      const firstAssignment = cell.assignments[0];
+                      if (firstAssignment?.score) {
+                        const firstBreakdown = calculatePreferenceBreakdown(
+                          cell.facultyId,
+                          firstAssignment.sectionId,
+                          cell.timeslotId,
+                          firstAssignment.buildingId,
+                          preferences,
+                          config,
+                        );
+                        // Include all score components in logical reading order
+                        const scoreComponents = [
+                          `preference ${formatPreference(firstBreakdown.total)}`,
+                          `subject ${formatPreference(firstBreakdown.subject)}`,
+                          `timeslot ${formatPreference(firstBreakdown.timeslot)}`,
+                          `building ${firstAssignment.buildingId ? formatPreference(firstBreakdown.building) : 'N/A'}`,
+                          `mobility ${formatPreference(firstAssignment.score.mobility)}`,
+                          `seniority ${formatPreference(firstAssignment.score.seniority)}`,
+                          `consecutive ${formatPreference(firstAssignment.score.consecutive)}`,
+                          `total score ${formatPreference(firstAssignment.score.total)}`,
+                        ].join(', ');
+                        accessibleLabel = `${row.faculty.name} at ${timeslotLabel}, ${scoreComponents}${conflictDescription}`;
+                      } else {
+                        accessibleLabel = `${row.faculty.name} at ${timeslotLabel}, ${preferenceLabel.toLowerCase()} ${formatPreference(effectivePreference)}${conflictDescription}`;
+                      }
+                    } else {
+                      // Simple tooltip for cells without assignments
+                      const tooltipParts = [
+                        `${row.faculty.name} at ${timeslotLabel}`,
+                        `${preferenceLabel}: ${formatPreference(effectivePreference)}`,
+                      ];
+                      
+                      if (conflictDescription) {
+                        tooltipParts.push(conflictDescription.substring(2)); // Remove leading ", "
+                      }
+                      
+                      tooltipText = tooltipParts.join('\n');
+                      accessibleLabel = `${row.faculty.name} at ${timeslotLabel}, ${preferenceLabel.toLowerCase()} ${formatPreference(effectivePreference)}${conflictDescription}`;
                     }
-                    
-                    if (conflictDescription) {
-                      tooltipParts.push(conflictDescription.substring(2)); // Remove leading ", "
-                    }
-                    
-                    const tooltipText = tooltipParts.join('\n');
-                    const accessibleLabel = `${row.faculty.name} at ${timeslotLabel}, ${preferenceLabel.toLowerCase()} ${formatPreference(effectivePreference)}${conflictDescription}`;
                     
                     return (
                       <td key={key} className="px-1.5 py-1.5 align-top">
