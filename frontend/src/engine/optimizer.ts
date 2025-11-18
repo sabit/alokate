@@ -23,6 +23,7 @@ interface FacultyCandidate {
   preferenceScore: number;
   seniorityScore: number;
   mobilityScore: number;
+  consecutiveScore: number;
   capacityPenalty: number;
   load: number;
   capacity: number;
@@ -53,6 +54,39 @@ const DEFAULT_WEIGHTS: Settings['weights'] = {
   preference: 1,
   mobility: 1,
   seniority: 1,
+  consecutive: 1,
+};
+
+/**
+ * Parse time string in "HH:MM" format to minutes since midnight
+ */
+const parseTimeToMinutes = (timeString: string): number => {
+  const [hours, minutes] = timeString.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+/**
+ * Detect if consecutive timeslots span lunch hours (11:00-14:00)
+ */
+const isLunchHourPair = (
+  prevTimeslot: ConfigData['timeslots'][number],
+  currentTimeslot: ConfigData['timeslots'][number],
+): boolean => {
+  // Parse time strings (format: "HH:MM")
+  const prevEnd = parseTimeToMinutes(prevTimeslot.end);
+  const currentStart = parseTimeToMinutes(currentTimeslot.start);
+  
+  // Lunch hour definition: one slot ends between 11:00-13:00 and next starts between 11:00-14:00
+  const lunchEndStart = 11 * 60; // 11:00 in minutes
+  const lunchEndEnd = 13 * 60; // 13:00 in minutes
+  const lunchStartEnd = 14 * 60; // 14:00 in minutes
+  
+  return (
+    prevEnd >= lunchEndStart &&
+    prevEnd <= lunchEndEnd &&
+    currentStart >= lunchEndStart &&
+    currentStart <= lunchStartEnd
+  );
 };
 
 const hashValue = (value: string): number => {
@@ -168,6 +202,59 @@ const calculateBuildingTransitionPenalty = (
   // Apply penalty: -1 * mobilityValue for each transition
   // Higher mobility value = higher penalty (less mobile faculty)
   return -1 * mobilityValue * transitionCount;
+};
+
+/**
+ * Calculate consecutive penalty for faculty assignments
+ */
+const calculateConsecutivePenalty = (
+  facultyId: string,
+  newTimeslotId: string,
+  currentAssignments: ScheduleEntry[],
+  timeslotIndexMap: Map<string, number>,
+  timeslots: ConfigData['timeslots'],
+  consecutiveValue: number,
+): number => {
+  if (consecutiveValue === 0) {
+    return 0; // No penalty if consecutive value is 0
+  }
+
+  // Get all current assignments for this faculty in chronological order
+  const facultyAssignments = currentAssignments
+    .filter((entry) => entry.facultyId === facultyId)
+    .map((entry) => ({
+      timeslotId: entry.timeslotId,
+      timeslotIndex: timeslotIndexMap.get(entry.timeslotId) ?? Number.MAX_SAFE_INTEGER,
+    }))
+    .sort((a, b) => a.timeslotIndex - b.timeslotIndex);
+
+  // Insert the new assignment in chronological order
+  const newTimeslotIndex = timeslotIndexMap.get(newTimeslotId) ?? Number.MAX_SAFE_INTEGER;
+  const allAssignments = [...facultyAssignments, { timeslotId: newTimeslotId, timeslotIndex: newTimeslotIndex }]
+    .sort((a, b) => a.timeslotIndex - b.timeslotIndex);
+
+  // Count consecutive pairs
+  let consecutiveCount = 0;
+  
+  for (let i = 1; i < allAssignments.length; i++) {
+    const prevIndex = allAssignments[i - 1].timeslotIndex;
+    const currentIndex = allAssignments[i].timeslotIndex;
+
+    // Check if timeslots are consecutive (adjacent indices)
+    if (currentIndex === prevIndex + 1) {
+      const prevTimeslot = timeslots[prevIndex];
+      const currentTimeslot = timeslots[currentIndex];
+      
+      // Check if this consecutive pair spans lunch hour
+      const isLunchPair = isLunchHourPair(prevTimeslot, currentTimeslot);
+      
+      // Add 1 for regular consecutive, 2 for lunch-spanning consecutive
+      consecutiveCount += isLunchPair ? 2 : 1;
+    }
+  }
+
+  // Apply penalty: -1 * consecutiveValue for each consecutive occurrence
+  return -1 * consecutiveValue * consecutiveCount;
 };
 
 interface SectionFeasibility {
@@ -333,6 +420,22 @@ export const runOptimizer = (
         }
       }
       
+      // Calculate consecutive score
+      let consecutiveScore = 0;
+      if (resolvedTimeslotId) {
+        const consecutiveValue = preferences.consecutive?.[faculty.id] ?? 1;
+        if (consecutiveValue > 0) {
+          consecutiveScore = calculateConsecutivePenalty(
+            faculty.id,
+            resolvedTimeslotId,
+            sanitizedLockedEntries,
+            timeslotIndexMap,
+            config.timeslots,
+            consecutiveValue
+          );
+        }
+      }
+      
       // Calculate capacity penalty
       const currentLoad = facultyLoad.get(faculty.id) ?? 0;
       const capacityPenalty = calculateCapacityPenalty(
@@ -342,11 +445,12 @@ export const runOptimizer = (
         faculty.canOverload
       );
       
-      // Calculate total score using the formula: (preference * weight) + (mobility * weight) + (seniority * weight) + capacityPenalty
+      // Calculate total score using the formula: (preference * weight) + (mobility * weight) + (seniority * weight) + (consecutive * weight) + capacityPenalty
       const preferenceComponent = combinedPreference * weights.preference;
       const mobilityComponent = mobilityScore * weights.mobility;
       const seniorityComponent = seniority * weights.seniority;
-      const totalScore = preferenceComponent + mobilityComponent + seniorityComponent + capacityPenalty;
+      const consecutiveComponent = consecutiveScore * weights.consecutive;
+      const totalScore = preferenceComponent + mobilityComponent + seniorityComponent + consecutiveComponent + capacityPenalty;
       
       const sanitizedEntry: ScheduleEntry = {
         ...entry,
@@ -356,6 +460,7 @@ export const runOptimizer = (
           preference: combinedPreference,
           mobility: mobilityScore,
           seniority: seniority,
+          consecutive: consecutiveScore,
           capacityPenalty,
           total: totalScore,
         },
@@ -431,10 +536,27 @@ export const runOptimizer = (
       }
       const mobilityComponent = mobilityScore * weights.mobility;
       
+      // Calculate consecutive score
+      let consecutiveScore = 0;
+      if (section.timeslotId) {
+        const consecutiveValue = preferences.consecutive?.[faculty.id] ?? 1;
+        if (consecutiveValue > 0) {
+          consecutiveScore = calculateConsecutivePenalty(
+            faculty.id,
+            section.timeslotId,
+            result,
+            timeslotIndexMap,
+            config.timeslots,
+            consecutiveValue
+          );
+        }
+      }
+      const consecutiveComponent = consecutiveScore * weights.consecutive;
+      
       const tieBreaker = hashValue(`${seed}:${faculty.id}:${section.id}`);
 
-      // Total score formula: (preference * weight) + (mobility * weight) + (seniority * weight) + capacityPenalty
-      const totalScore = preferenceComponent + mobilityComponent + seniorityComponent + capacityPenalty;
+      // Total score formula: (preference * weight) + (mobility * weight) + (seniority * weight) + (consecutive * weight) + capacityPenalty
+      const totalScore = preferenceComponent + mobilityComponent + seniorityComponent + consecutiveComponent + capacityPenalty;
 
       return {
         facultyId: faculty.id,
@@ -442,6 +564,7 @@ export const runOptimizer = (
         preferenceScore: combinedPreference,
         seniorityScore: seniority,
         mobilityScore: mobilityScore,
+        consecutiveScore: consecutiveScore,
         capacityPenalty,
         load,
         capacity,
@@ -584,12 +707,13 @@ export const runOptimizer = (
     // Use the selected candidate (may have been swapped to alternative)
     const selectedCandidate = candidates[0];
     
-    // Calculate total score using the formula: (preference * weight) + (mobility * weight) + (seniority * weight) + capacityPenalty
+    // Calculate total score using the formula: (preference * weight) + (mobility * weight) + (seniority * weight) + (consecutive * weight) + capacityPenalty
     const preferenceComponent = selectedCandidate.preferenceScore * weights.preference;
     const mobilityComponent = selectedCandidate.mobilityScore * weights.mobility;
     const seniorityComponent = selectedCandidate.seniorityScore * weights.seniority;
+    const consecutiveComponent = selectedCandidate.consecutiveScore * weights.consecutive;
     const capacityPenalty = selectedCandidate.capacityPenalty;
-    const totalScore = preferenceComponent + mobilityComponent + seniorityComponent + capacityPenalty;
+    const totalScore = preferenceComponent + mobilityComponent + seniorityComponent + consecutiveComponent + capacityPenalty;
     
     const scheduleEntry: ScheduleEntry = {
       sectionId: section.id,
@@ -601,6 +725,7 @@ export const runOptimizer = (
         preference: selectedCandidate.preferenceScore,
         mobility: selectedCandidate.mobilityScore,
         seniority: selectedCandidate.seniorityScore,
+        consecutive: selectedCandidate.consecutiveScore,
         capacityPenalty,
         total: totalScore,
       },

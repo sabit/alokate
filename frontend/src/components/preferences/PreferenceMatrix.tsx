@@ -7,7 +7,7 @@ import { useSchedulerStore } from '../../store/schedulerStore';
 import type { ConfigData, PreferenceLevel, Preferences } from '../../types';
 import { QuickFillTools } from './QuickFillTools';
 
-type PreferenceView = 'subjects' | 'timeslots' | 'buildings' | 'mobility';
+type PreferenceView = 'subjects' | 'timeslots' | 'buildings' | 'mobility' | 'consecutive';
 type MatrixView = 'subjects' | 'timeslots' | 'buildings';
 
 const preferenceColors: Record<PreferenceLevel, string> = {
@@ -45,6 +45,11 @@ const matrixViews: Array<{
     label: 'Mobility',
     description: 'Adjust mobility penalty weights for individual faculty.',
   },
+  {
+    id: 'consecutive',
+    label: 'Consecutive',
+    description: 'Set penalty for back-to-back classes (doubled around lunch hours).',
+  },
 ];
 
 const domainKeyMap = {
@@ -53,7 +58,8 @@ const domainKeyMap = {
   buildings: 'facultyBuilding',
 } as const;
 
-const isMatrixView = (view: PreferenceView): view is MatrixView => view !== 'mobility';
+const isMatrixView = (view: PreferenceView): view is MatrixView => 
+  view !== 'mobility' && view !== 'consecutive';
 
 const matrixColumnMeta: Record<MatrixView, (config: ConfigData) => Array<{ id: string; label: string }>> = {
   subjects: (config) =>
@@ -200,6 +206,16 @@ export const PreferenceMatrix = () => {
         mobility: nextMobility,
       };
       updatePreferences(updatedPreferences);
+    } else if (activeView === 'consecutive') {
+      const nextConsecutive: Record<string, number> = {};
+      faculties.forEach((faculty) => {
+        nextConsecutive[faculty.id] = 1;
+      });
+      const updatedPreferences: Preferences = {
+        ...preferences,
+        consecutive: nextConsecutive,
+      };
+      updatePreferences(updatedPreferences);
     } else {
       if (!isMatrixView(activeView)) {
         return;
@@ -252,6 +268,21 @@ export const PreferenceMatrix = () => {
     [preferences, schedulePersist, updatePreferences],
   );
 
+  const handleConsecutiveChange = useCallback(
+    (facultyId: string, value: number) => {
+      const updatedPreferences: Preferences = {
+        ...preferences,
+        consecutive: {
+          ...(preferences.consecutive ?? {}),
+          [facultyId]: value,
+        },
+      };
+      updatePreferences(updatedPreferences);
+      schedulePersist();
+    },
+    [preferences, schedulePersist, updatePreferences],
+  );
+
   const renderMatrix = () => {
     if (faculties.length === 0) {
       return (
@@ -285,6 +316,40 @@ export const PreferenceMatrix = () => {
                 />
                 <span className="w-6 text-sm font-semibold text-emerald-200 text-right">
                   {preferences.mobility?.[faculty.id] ?? 0}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (activeView === 'consecutive') {
+      return (
+        <div className="space-y-4">
+          <p className="text-sm text-slate-400">
+            Higher values penalize consecutive timeslots more. Penalty doubles for slots around lunch (11:00-14:00).
+          </p>
+          {faculties.map((faculty) => (
+            <div
+              key={faculty.id}
+              className="flex flex-col gap-2 rounded-lg border border-white/5 bg-slate-900/40 p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="font-medium text-slate-100">{faculty.name}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={3}
+                  step={1}
+                  value={preferences.consecutive?.[faculty.id] ?? 1}
+                  onChange={(event) => handleConsecutiveChange(faculty.id, Number(event.target.value))}
+                  className="h-1 w-48 accent-amber-500"
+                />
+                <span className="w-6 text-sm font-semibold text-amber-200 text-right">
+                  {preferences.consecutive?.[faculty.id] ?? 1}
                 </span>
               </div>
             </div>

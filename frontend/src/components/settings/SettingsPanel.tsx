@@ -109,7 +109,7 @@ export const SettingsPanel = () => {
         <h3 className="text-lg font-semibold">Algorithm weights</h3>
         <p className="text-sm text-slate-400">
           Current mobility weight: {settings.weights.mobility.toFixed(2)}, preference weight:{' '}
-          {settings.weights.preference.toFixed(2)}, seniority weight: {settings.weights.seniority.toFixed(2)}
+          {settings.weights.preference.toFixed(2)}, seniority weight: {settings.weights.seniority.toFixed(2)}, consecutive weight: {settings.weights.consecutive.toFixed(2)}
         </p>
         <Button
           className="mt-3"

@@ -24,11 +24,12 @@ const emptyState = (): UnifiedState => ({
     facultyTimeslot: {},
     facultyBuilding: {},
     mobility: {},
+    consecutive: {},
   },
   schedule: [],
   snapshots: [],
   settings: {
-    weights: { mobility: 0.8, seniority: 1.2, preference: 1.0 },
+    weights: { mobility: 0.8, seniority: 1.2, preference: 1.0, consecutive: 1.0 },
     theme: 'dark',
     optimizerSeed: 42,
   },

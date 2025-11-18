@@ -21,7 +21,12 @@ const preferenceBadgeClass: Record<PreferenceLevel, string> = {
   3: 'bg-emerald-700/60 text-emerald-50 border-emerald-300/50',
 };
 
-const formatPreference = (value: PreferenceLevel) => (value > 0 ? `+${value}` : value.toString());
+const formatPreference = (value: number) => {
+  // Round to 1 decimal place for display
+  const rounded = Math.round(value * 10) / 10;
+  // Format with +/- prefix
+  return rounded > 0 ? `+${rounded}` : rounded.toString();
+};
 
 const conflictBorderClass: Record<ConflictSeverity, string> = {
   info: 'border-sky-400/60',
@@ -381,10 +386,19 @@ export const ScheduleGrid = () => {
                         ? `, ${cell.conflictIds.length} conflict${cell.conflictIds.length === 1 ? '' : 's'} (${cell.conflictSeverity})`
                         : '';
                     
+                    // Calculate effective preference based on assignments
+                    const effectivePreference = hasAssignments
+                      ? cell.assignments.reduce((sum, a) => sum + (a.score?.preference ?? 0), 0) / cell.assignments.length
+                      : cell.preference;
+                    
+                    const preferenceLabel = hasAssignments 
+                      ? 'Assignment Preference' 
+                      : 'Timeslot Preference';
+                    
                     // Build detailed tooltip
                     const tooltipParts = [
                       `${row.faculty.name} at ${timeslotLabel}`,
-                      `Preference: ${formatPreference(cell.preference)}`,
+                      `${preferenceLabel}: ${formatPreference(effectivePreference)}`,
                     ];
                     
                     if (hasAssignments) {
@@ -403,7 +417,7 @@ export const ScheduleGrid = () => {
                     }
                     
                     const tooltipText = tooltipParts.join('\n');
-                    const accessibleLabel = `${row.faculty.name} at ${timeslotLabel}, preference ${formatPreference(cell.preference)}${conflictDescription}`;
+                    const accessibleLabel = `${row.faculty.name} at ${timeslotLabel}, ${preferenceLabel.toLowerCase()} ${formatPreference(effectivePreference)}${conflictDescription}`;
                     
                     return (
                       <td key={key} className="px-1.5 py-1.5 align-top">

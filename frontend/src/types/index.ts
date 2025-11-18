@@ -59,6 +59,7 @@ export interface Preferences {
   facultyTimeslot: Record<string, Record<string, PreferenceLevel>>;
   facultyBuilding: Record<string, Record<string, PreferenceLevel>>;
   mobility: Record<string, number>;
+  consecutive: Record<string, number>;
 }
 
 export interface ScoreBreakdown {
@@ -66,6 +67,7 @@ export interface ScoreBreakdown {
   mobility: number;
   seniority: number;
   capacityPenalty: number;
+  consecutive: number;
   total: number;
 }
 
@@ -83,6 +85,7 @@ export interface Settings {
     mobility: number;
     seniority: number;
     preference: number;
+    consecutive: number;
   };
   theme: 'light' | 'dark';
   optimizerSeed?: number;
