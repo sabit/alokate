@@ -383,16 +383,28 @@ export const PreferenceMatrix = () => {
                 const backgroundColor = subject?.color || '#0f172a'; // fallback to slate-900
                 const textColor = subject?.color ? getContrastTextColor(backgroundColor) : undefined;
                 
+                // Split timeslot labels into day and time for better readability
+                const labelParts = activeView === 'timeslots' && column.label.includes(' ') 
+                  ? column.label.split(' ', 2) 
+                  : null;
+                
                 return (
                 <th
                   key={column.id}
                   scope="col"
-                  className="relative sticky top-0 z-20 px-4 py-3 font-semibold"
+                  className="relative sticky top-0 z-20 px-4 py-3 font-semibold min-w-20"
                   style={subject?.color ? { backgroundColor, color: textColor } : { backgroundColor: '#0f172a' }}
                   onMouseEnter={() => setHoveredColumn(column.id)}
                   onMouseLeave={() => setHoveredColumn(null)}
                 >
-                  {column.label}
+                  {labelParts ? (
+                    <div className="flex flex-col items-center">
+                      <div>{labelParts[0]}</div>
+                      <div className="text-xs font-normal">{labelParts[1]}</div>
+                    </div>
+                  ) : (
+                    column.label
+                  )}
                   {hoveredColumn === column.id && (
                     <div className="absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 rounded-lg border border-white/10 bg-slate-900 p-3 text-xs shadow-xl">
                       <div className="space-y-1">
@@ -437,7 +449,7 @@ export const PreferenceMatrix = () => {
                   const columnIdentifier = column.id;
                   const value = getValue(faculty.id, columnIdentifier);
                   return (
-                    <td key={columnIdentifier} className="px-4 py-2">
+                    <td key={columnIdentifier} className="px-4 py-2 min-w-20">
                       <button
                         type="button"
                         className={clsx(
