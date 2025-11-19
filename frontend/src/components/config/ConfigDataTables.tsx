@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSchedulerStore } from '../../store/schedulerStore';
-import type { ConfigData, Faculty } from '../../types';
+import type { ConfigData, Faculty, Subject } from '../../types';
+import { ColorPicker } from './ColorPicker';
 
 interface ConfigDataTablesProps {
   config: ConfigData;
@@ -106,6 +107,13 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
       f.id === facultyId ? { ...f, ...updates } : f,
     );
     updateConfig({ ...config, faculty: updatedFaculty });
+  };
+
+  const updateSubject = (subjectId: string, updates: Partial<Subject>) => {
+    const updatedSubjects = config.subjects.map((s) =>
+      s.id === subjectId ? { ...s, ...updates } : s,
+    );
+    updateConfig({ ...config, subjects: updatedSubjects });
   };
 
   const handleToggleAllCanOverload = () => {
@@ -247,6 +255,9 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
                       Name
                     </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+                      Color
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -254,6 +265,13 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                     <tr key={subject.id} className="hover:bg-white/5" data-id={subject.id}>
                       <td className="px-4 py-2 text-sm text-slate-300">{subject.code}</td>
                       <td className="px-4 py-2 text-sm text-slate-300">{subject.name}</td>
+                      <td className="px-4 py-2">
+                        <ColorPicker
+                          color={subject.color || '#F4D1AE'}
+                          onChange={(color) => updateSubject(subject.id, { color })}
+                          label={subject.code}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

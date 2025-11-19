@@ -6,6 +6,7 @@ import { useScheduleGrid } from '../../../hooks/useScheduleGrid';
 import { useSchedulerStore } from '../../../store/schedulerStore';
 import { useScheduleUiStore } from '../../../store/scheduleUiStore';
 import type { PreferenceLevel } from '../../../types';
+import { getContrastTextColor } from '../../../utils/colorUtils';
 import { getInitials } from '../../../utils/formatters';
 import { buildScoreTooltip, calculatePreferenceBreakdown } from '../../../utils/scoreFormatters';
 import { ContextMenu } from '../../shared/ContextMenu';
@@ -479,6 +480,18 @@ export const ScheduleGrid = () => {
                       accessibleLabel = `${row.faculty.name} at ${timeslotLabel}, ${preferenceLabel.toLowerCase()} ${formatPreference(effectivePreference)}${conflictDescription}`;
                     }
                     
+                    // Get subject color for cells with assignments
+                    const firstAssignment = cell.assignments[0];
+                    const subject = firstAssignment ? config.subjects.find(s => s.id === firstAssignment.subjectId) : null;
+                    const subjectColor = subject?.color;
+                    const textColor = subjectColor ? getContrastTextColor(subjectColor) : undefined;
+                    
+                    // Build inline styles for subject color
+                    const cellStyle = subjectColor ? {
+                      backgroundColor: subjectColor,
+                      color: textColor,
+                    } : undefined;
+                    
                     return (
                       <td key={key} className="px-1.5 py-1.5 align-top">
                         <button
@@ -486,7 +499,8 @@ export const ScheduleGrid = () => {
                           ref={(node) => registerCellRef(key, node)}
                           className={clsx(
                             'relative flex h-full w-full min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400',
-                            preferenceBadgeClass[cell.preference],
+                            // Only apply preference badge class if no subject color
+                            !subjectColor && preferenceBadgeClass[cell.preference],
                             cell.conflictSeverity && conflictBorderClass[cell.conflictSeverity],
                             {
                               'ring-2 ring-brand-400': isActive,
@@ -495,6 +509,7 @@ export const ScheduleGrid = () => {
                               'opacity-70': !hasAssignments,
                             },
                           )}
+                          style={cellStyle}
                           onMouseEnter={() => setHoveredCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId })}
                           onMouseLeave={() => setHoveredCell((current) => (current?.facultyId === cell.facultyId && current.timeslotId === cell.timeslotId ? null : current))}
                           onFocus={() => setActiveCell({ facultyId: cell.facultyId, timeslotId: cell.timeslotId })}
@@ -523,7 +538,8 @@ export const ScheduleGrid = () => {
                               ? cell.assignments.map((assignment) => (
                                   <span
                                     key={assignment.sectionId}
-                                    className="inline-block rounded bg-black/30 px-1.5 py-0.5 text-xs font-semibold text-slate-50"
+                                    className="inline-block px-1.5 py-0.5 text-sm font-bold"
+                                    style={textColor ? { color: textColor } : undefined}
                                   >
                                     {assignment.subjectCode ?? assignment.subjectName}
                                   </span>
@@ -534,7 +550,10 @@ export const ScheduleGrid = () => {
                           </div>
                           {hasAssignments && cell.assignments.length > 1 && (
                             <div className="absolute bottom-1 right-1">
-                              <span className="rounded bg-black/20 px-1 py-0.5 text-[9px] text-slate-300">
+                              <span 
+                                className="rounded px-1 py-0.5 text-[9px] font-medium"
+                                style={textColor ? { color: textColor } : undefined}
+                              >
                                 ×{cell.assignments.length}
                               </span>
                             </div>

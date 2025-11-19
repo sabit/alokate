@@ -11,6 +11,7 @@ export interface Subject {
   id: string;
   name: string;
   code: string;
+  color?: string; // Hexadecimal color code (e.g., "#F4D1AE")
 }
 
 export interface Section {

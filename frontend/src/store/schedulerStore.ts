@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import { create } from 'zustand';
 import type { ConfigData, Preferences, ScheduleEntry, Settings, UnifiedState } from '../types';
+import { ensureSubjectColors } from '../utils/colorUtils';
 
 export interface SchedulerState extends UnifiedState {
   hydrate: (state: UnifiedState) => void;
@@ -39,7 +40,13 @@ const initializer: StateCreator<SchedulerState> = (set) => ({
   ...emptyState(),
   hydrate: (state) => set({ ...state }),
   updateSchedule: (schedule) => set({ schedule }),
-  updateConfig: (config) => set({ config }),
+  updateConfig: (config) => {
+    const configWithColors = {
+      ...config,
+      subjects: ensureSubjectColors(config.subjects),
+    };
+    set({ config: configWithColors });
+  },
   updatePreferences: (preferences) => set({ preferences }),
   updateSettings: (settings) => set({ settings }),
 });

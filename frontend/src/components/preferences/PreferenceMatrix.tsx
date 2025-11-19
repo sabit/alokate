@@ -5,6 +5,7 @@ import { useSchedulerPersistence } from '../../hooks/useSchedulerPersistence';
 import { useToast } from '../../hooks/useToast';
 import { useSchedulerStore } from '../../store/schedulerStore';
 import type { ConfigData, PreferenceLevel, Preferences } from '../../types';
+import { getContrastTextColor } from '../../utils/colorUtils';
 import { QuickFillTools } from './QuickFillTools';
 
 type PreferenceView = 'subjects' | 'timeslots' | 'buildings' | 'mobility' | 'consecutive';
@@ -374,11 +375,20 @@ export const PreferenceMatrix = () => {
               <th scope="col" className="sticky left-0 top-0 z-30 bg-slate-900 px-4 py-3 font-semibold text-slate-300">
                 Faculty
               </th>
-              {columns.map((column) => (
+              {columns.map((column) => {
+                // Apply subject colors when in subjects view
+                const subject = activeView === 'subjects' 
+                  ? config.subjects.find(s => s.id === column.id)
+                  : null;
+                const backgroundColor = subject?.color || '#0f172a'; // fallback to slate-900
+                const textColor = subject?.color ? getContrastTextColor(backgroundColor) : undefined;
+                
+                return (
                 <th
                   key={column.id}
                   scope="col"
-                  className="relative sticky top-0 z-20 bg-slate-900 px-4 py-3 font-semibold"
+                  className="relative sticky top-0 z-20 px-4 py-3 font-semibold"
+                  style={subject?.color ? { backgroundColor, color: textColor } : { backgroundColor: '#0f172a' }}
                   onMouseEnter={() => setHoveredColumn(column.id)}
                   onMouseLeave={() => setHoveredColumn(null)}
                 >
@@ -409,7 +419,8 @@ export const PreferenceMatrix = () => {
                     </div>
                   )}
                 </th>
-              ))}
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
