@@ -38,6 +38,53 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
     [config.timeslots],
   );
 
+  // Sort subjects by code (case-insensitive)
+  const sortedSubjects = useMemo(
+    () => [...config.subjects].sort((a, b) => 
+      a.code.localeCompare(b.code, undefined, { sensitivity: 'base' })
+    ),
+    [config.subjects],
+  );
+
+  // Sort rooms by building name (primary) and room label (secondary)
+  const sortedRooms = useMemo(() => {
+    return [...config.rooms].sort((a, b) => {
+      const buildingA = config.buildings.find((bldg) => bldg.id === a.buildingId);
+      const buildingB = config.buildings.find((bldg) => bldg.id === b.buildingId);
+      
+      const buildingNameA = buildingA?.label || a.buildingId;
+      const buildingNameB = buildingB?.label || b.buildingId;
+      
+      // Primary sort: building name
+      const buildingCompare = buildingNameA.localeCompare(buildingNameB);
+      if (buildingCompare !== 0) {
+        return buildingCompare;
+      }
+      
+      // Secondary sort: room label
+      return a.label.localeCompare(b.label);
+    });
+  }, [config.rooms, config.buildings]);
+
+  // Compute section count by subject
+  const sectionCountBySubject = useMemo(() => {
+    const countMap = new Map<string, { subject: typeof config.subjects[0]; count: number }>();
+    
+    config.sections.forEach((section) => {
+      const subject = config.subjects.find((s) => s.id === section.subjectId);
+      if (subject) {
+        const existing = countMap.get(subject.id);
+        if (existing) {
+          existing.count++;
+        } else {
+          countMap.set(subject.id, { subject, count: 1 });
+        }
+      }
+    });
+    
+    return countMap;
+  }, [config.sections, config.subjects]);
+
   // Computed states for select all toggle
   const allCanOverload = useMemo(
     () => config.faculty.length > 0 && config.faculty.every((f) => f.canOverload),
@@ -203,7 +250,7 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {config.subjects.map((subject) => (
+                  {sortedSubjects.map((subject) => (
                     <tr key={subject.id} className="hover:bg-white/5" data-id={subject.id}>
                       <td className="px-4 py-2 text-sm text-slate-300">{subject.code}</td>
                       <td className="px-4 py-2 text-sm text-slate-300">{subject.name}</td>
@@ -321,7 +368,7 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {config.rooms.map((room) => {
+                  {sortedRooms.map((room) => {
                     const building = config.buildings.find((b) => b.id === room.buildingId);
                     return (
                       <tr key={room.id} className="hover:bg-white/5" data-id={room.id}>
@@ -351,8 +398,29 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
             <span className="text-slate-400">{isExpanded('sections') ? '−' : '+'}</span>
           </button>
           {isExpanded('sections') && (
-            <div className="overflow-x-auto border-t border-white/5">
-              <table className="w-full">
+            <>
+              {/* Section count summary */}
+              {sectionCountBySubject.size > 0 && (
+                <div className="border-t border-white/5 bg-slate-900/40 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                      By Subject:
+                    </span>
+                    {Array.from(sectionCountBySubject.values())
+                      .sort((a, b) => a.subject.code.localeCompare(b.subject.code))
+                      .map(({ subject, count }) => (
+                        <span
+                          key={subject.id}
+                          className="inline-flex items-center rounded-full bg-slate-800 px-2.5 py-0.5 text-xs font-medium text-slate-300"
+                        >
+                          {subject.code} ({count})
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+              <div className="overflow-x-auto border-t border-white/5">
+                <table className="w-full">
                 <thead className="bg-slate-900/60">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -403,7 +471,8 @@ export const ConfigDataTables = ({ config }: ConfigDataTablesProps) => {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </div>
       )}
