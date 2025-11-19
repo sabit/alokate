@@ -2,6 +2,7 @@
   "name": "alokate",
   "private": true,
   "version": "0.1.0",
+  "main": "electron/dist/main.js",
   "workspaces": [
     "frontend"
   ],
@@ -9,9 +10,25 @@
     "build": "npm run build --workspace frontend",
     "lint": "npm run lint --workspace frontend",
     "test": "npm run test --workspace frontend",
-    "format": "npm run format --workspace frontend"
+    "format": "npm run format --workspace frontend",
+    "electron:compile": "tsc -p electron/tsconfig.json",
+    "electron:dev": "npm run electron:compile && concurrently -n \"vite,electron\" -c \"blue,green\" \"npm run dev --workspace frontend\" \"wait-on http://localhost:5173 --timeout 30000 && electron .\"",
+    "electron:build": "npm run electron:compile && npm run build --workspace frontend && electron-forge package",
+    "electron:make": "npm run electron:compile && npm run build --workspace frontend && electron-forge make",
+    "electron:make:all": "npm run electron:compile && npm run build --workspace frontend && electron-forge make --platform=win32,darwin,linux"
   },
   "devDependencies": {
-    "prettier": "3.2.5"
+    "@electron-forge/cli": "^7.10.2",
+    "@electron-forge/maker-deb": "^7.10.2",
+    "@electron-forge/maker-dmg": "^7.10.2",
+    "@electron-forge/maker-rpm": "^7.10.2",
+    "@electron-forge/maker-squirrel": "^7.10.2",
+    "@electron-forge/maker-zip": "^7.10.2",
+    "@types/node": "^22.10.2",
+    "concurrently": "^9.2.1",
+    "electron": "^39.2.2",
+    "prettier": "3.2.5",
+    "typescript": "^5.6.3",
+    "wait-on": "^9.0.3"
   }
 }
